@@ -1,3 +1,0 @@
-[console_scripts]
-swarm = main:cli
-ux-swarm = main:cli
