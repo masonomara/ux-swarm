@@ -148,3 +148,10 @@ Pydantic library provides `model_validate()` for parsing raw JSON into a proper 
 The data shapes will evolve and that's ok. What matters now is that we now have the "three systems of governance" in place - the docs, the models, and the code. Each one describes the same thing at a different level. We'll eventually add tests so all three stay in sync.
 
 Models were created in `src/ux_swarm/models.py`
+
+
+## Config Wizard
+
+Started with adding two dependencies: **Rich** for stylized terminal output (colored text, spinner, etc) and **Playwright** so we can run checks on teh Chromium browser binary is already installed, and becuase it;s used during `run`
+
+
