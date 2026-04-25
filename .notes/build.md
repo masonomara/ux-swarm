@@ -1,34 +1,32 @@
-## Library of resources
+# Build Notes
 
-https://medium.com/@hitorunajp/poetry-vs-uv-which-python-package-manager-should-you-use-in-2025-4212cb5e0a14
+## Resources
 
-https://www.youtube.com/watch?v=FWacanslfFM
+- [Poetry vs UV: Which Python Package Manager Should You Use in 2025?](https://medium.com/@hitorunajp/poetry-vs-uv-which-python-package-manager-should-you-use-in-2025-4212cb5e0a14)
+- [How to Build a Python CLI Tool People Actually Want to Use](https://www.youtube.com/watch?v=FWacanslfFM)
 
 ## Creating UX Swarm
 
-First thing I did was install UV, I wanted a package manager and version control tool, at first aI looked at poetry but UV seemed to do everything faster, the head of peotry actually let the project so I was worried about maintenance, general reviews of UV seemed pretty great, and the tools were all simply mapped as noted below. It also worked with click, which I wanted to use to keep the argument, commands, subcommands conventions I had set up during my ux swarm mvp
+First thing I did was install UV. I wanted a package manager and version control tool. At first I looked at Poetry, but UV seemed faster and better maintained. The head of Poetry had left the project so I was worried about maintenance. UV also worked well with Click, which I wanted to use to keep the argument/command/subcommand conventions I had established in the UX Swarm MVP.
 
-### Poetry to UV cheatsheet:
+### Poetry → UV Cheatsheet
 
-Poetry -> UV
-Poetry new pyproject -> Uv init myproject
-Poetry add click -> Uv add click
-Poetry add —group dev pytest -> Uv add --dev pytest
-poetry remove click -> uv remove click
-poetry install -> Uv sync
-poetry run python script.py -> uv run python script.py
-poetry shell source .venv/bin/activate (uv doesn't have a shell command, you just activate the venv directly)
-poetry lock -> Uv lock
-Poetry build -> Uv build
-Poetry publish -> Uv publish
+| Poetry                                       | UV                                                    |
+| -------------------------------------------- | ----------------------------------------------------- |
+| `poetry new pyproject`                       | `uv init myproject`                                   |
+| `poetry add click`                           | `uv add click`                                        |
+| `poetry add --group dev pytest`              | `uv add --dev pytest`                                 |
+| `poetry remove click`                        | `uv remove click`                                     |
+| `poetry install`                             | `uv sync`                                             |
+| `poetry run python script.py`                | `uv run python script.py`                             |
+| `poetry shell` / `source .venv/bin/activate` | `source .venv/bin/activate` (UV has no shell command) |
+| `poetry lock`                                | `uv lock`                                             |
+| `poetry build`                               | `uv build`                                            |
+| `poetry publish`                             | `uv publish`                                          |
 
-### Setting up UV
+### Setting Up UV
 
-So so far, we have **click** and **uv** as our tools
-
-Hers the setup workflow:
-
-**1. Initializing a new project**
+**1. Initialize a new project**
 
 ```bash
 uv init
@@ -40,36 +38,80 @@ uv init
 uv add requests
 ```
 
-**3. Install dependencies (super fast, cached)**
+**3. Install dependencies (fast, cached)**
 
 ```bash
 uv sync
 ```
 
-**4. Run inside environment**
+**4. Run inside the environment**
 
 ```bash
 uv run main.py
 ```
 
-Note, somehtign dfferetn abotu UV from other projects, the virtual environment in in .venv, its not autorunning whenever im doign developing, dependencies are automatically put into .venv and then when i run the command through uv it autmacally runs it from the venv. keeps it seerated, which I like.
+> Note: UV keeps the virtual environment in `.venv` and doesn't auto-activate it during development. Dependencies automatically go into `.venv`, and `uv run` uses it automatically. This keeps the environment sperated and isolated, which is good.
 
-## Click COnventions
-
-lets run :
+## Click Conventions
 
 ```bash
 uv add click
 ```
 
-I added conventiosn to CLAUDE.md based on Simon Willison;s [blog post](https://simonwillison.net/2023/Sep/30/cli-tools-python/) for my own notes anduseful for claude to know. I have not yet nstalled click, but I am committed to using it/
+I added conventions to `CLAUDE.md` based on Simon Willison's [blog post](https://simonwillison.net/2023/Sep/30/cli-tools-python/).
 
-**Arguments** are good for happy paths, thigns that every run needs to run, for my build, the arguments will be items like the target (URL or screenshot path) and the task. so my argmeuents are target and task.
+**Arguments** are good for happy paths - required, positional inputs - things every run needs. For this project, that's `target` (URL or screenshot path) and `task`.
 
+```
 ux-swarm [target] [task]
+```
 
-ex.
+Examples:
+
+```bash
 ux-swarm https://example.com "complete the checkout flow"
 ux-swarm screenshot.png "find and submit the contact form"
+```
 
-**Options** re good for modifying behavior and defaults
+**Options** are good for modifying behavior and can have defaults.
+
+## Entry Points
+
+I set up two entry point scripts in `pyproject.toml`:
+
+```toml
+[project.scripts]
+ux-swarm = "main:cli"
+swarm = "main:cli"
+```
+
+and then I installed in editable mode:
+
+```bash
+uv pip install -e .
+```
+
+So now both `swarm` and `ux-swarm` work anywhere in the terminal. Editable mode means changes to `main.py` take effect immediately without reinstalling.
+
+Examples:
+
+```bash
+swarm https://example.com "complete the checkout flow"
+swarm screenshot.png "find and submit the contact form"
+```
+
+## Recap — Done with Scaffolding
+
+- UV is set up for package management
+- Click is wired up
+- `run` command is working implicitly — bare URLs/image paths route to it without typing `run`
+- Argument surface defined: `url`, `task`, plus `--users`, `--max-steps`, `--viewport`, `--verbose`
+- `swarm` and `ux-swarm` are installed as real CLI commands via `pyproject.toml` + `uv pip install -e .`
+
+## Recap - Done with Scaffolding
+
+- `UV` is set up for package management
+- `Click` is wired up
+- `run` command is working implicitly, no need to type it in
+- We have a few argument surfaces defined: `url`, `task`, plus `--users`, `--max-steps`, `--viewport`, `--verbose`
+- `swarm` and `ux-swarm` are installed as real CLI commands via `pyproject.toml` + `uv pip install -e .`
