@@ -20,6 +20,16 @@ def cli(ctx):
         click.echo(ctx.get_help())
 
 
+# TODO: find a permanent home for these once the run command is built out
+RUN_DEFAULTS: dict[str, int | float] = {
+    "default_users": 20,
+    "max_steps": 3,
+    "viewport_width": 1280,
+    "max_concurrent_browser": 5,
+    "max_concurrent_screenshot": 20,
+}
+
+
 @cli.command(hidden=True)
 @click.argument("target")
 @click.argument("task")
