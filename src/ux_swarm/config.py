@@ -37,14 +37,18 @@ def fetch_provider_models(provider_key: str, api_key: str) -> list[str]:
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = _json.loads(resp.read())
             return sorted(
-                m["id"] for m in data.get("data", [])
+                f"openai/{m['id']}" for m in data.get("data", [])
                 if ":" not in m["id"]
-                and (m["id"].startswith("gpt-") or (m["id"][:1] == "o" and m["id"][1:2].isdigit()))
+                and (
+                    m["id"].startswith("gpt-")
+                    or m["id"].startswith("chatgpt-")
+                    or (m["id"][:1] == "o" and m["id"][1:2].isdigit())
+                )
             )
 
         if provider_key == "anthropic":
             req = urllib.request.Request(
-                "https://api.anthropic.com/v1/models",
+                "https://api.anthropic.com/v1/models?limit=1000",
                 headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
@@ -60,7 +64,7 @@ def fetch_provider_models(provider_key: str, api_key: str) -> list[str]:
                 data = _json.loads(resp.read())
             return sorted(
                 f"gemini/{m['id']}" for m in data.get("data", [])
-                if m["id"].startswith("gemini-")
+                if m["id"].startswith("gemini-") and "embedding" not in m["id"]
             )
 
         if provider_key == "deepseek":

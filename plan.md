@@ -399,18 +399,18 @@ dependencies = [
 
 ### Phase 3 — `config.py`
 
-- [ ] Create `src/ux_swarm/config.py`
-- [ ] Add `LOCAL_DIR`, `LOCAL_CONFIG`, `GLOBAL_CONFIG` path constants
-- [ ] Define `PROVIDERS` list — four entries, three keys each (`name`, `key`, `env`)
-- [ ] Define `RUN_DEFAULTS` dict — five run parameters
-- [ ] Define `ProviderAuthError` exception
-- [ ] Implement `provider_env_var()` — key → env var name, fallback to `OPENAI_API_KEY`
-- [ ] Implement `fetch_provider_models()` — OpenAI branch (filter fine-tunes and non-chat models)
-- [ ] Implement `fetch_provider_models()` — Anthropic branch (prefix each ID with `anthropic/`)
-- [ ] Implement `fetch_provider_models()` — Gemini branch (filter to `gemini-` IDs, prefix with `gemini/`)
-- [ ] Implement `fetch_provider_models()` — DeepSeek branch (prefix each ID with `deepseek/`)
-- [ ] Wire auth failure (HTTP 401/403) → raise `ProviderAuthError` in all four branches
-- [ ] Wire non-auth failures to propagate (no bare `except` swallowing them)
+- [x] Create `src/ux_swarm/config.py`
+- [x] Add `LOCAL_DIR`, `LOCAL_CONFIG`, `GLOBAL_CONFIG` path constants
+- [x] Define `PROVIDERS` list — four entries, three keys each (`name`, `key`, `env`)
+- [x] Define `RUN_DEFAULTS` dict — five run parameters
+- [x] Define `ProviderAuthError` exception
+- [x] Implement `provider_env_var()` — key → env var name, fallback to `OPENAI_API_KEY`
+- [x] Implement `fetch_provider_models()` — OpenAI branch (filter fine-tunes and non-chat models)
+- [x] Implement `fetch_provider_models()` — Anthropic branch (prefix each ID with `anthropic/`)
+- [x] Implement `fetch_provider_models()` — Gemini branch (filter to `gemini-` IDs, prefix with `gemini/`)
+- [x] Implement `fetch_provider_models()` — DeepSeek branch (prefix each ID with `deepseek/`)
+- [x] Wire auth failure (HTTP 401/403) → raise `ProviderAuthError` in all four branches
+- [x] Wire non-auth failures to propagate (no bare `except` swallowing them)
 - [ ] Implement `check_playwright_browsers()` — import `sync_playwright`, check executable path exists
 - [ ] Implement `load_config()` — merge `RUN_DEFAULTS` → global file → local file
 - [ ] Add `json.JSONDecodeError` → `click.ClickException` in `load_config()`

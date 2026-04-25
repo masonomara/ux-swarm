@@ -156,3 +156,5 @@ Started with adding two dependencies: **Rich** for stylized terminal output (col
 
 The first thing I did was create the menu navigation function, this is a complicated function with rewrites whose data can be ported in from another component, makes sense to keep in its own `menu.py` file
 
+Then, we built out `config.py` with a list of providers and config and error handling. Once the file was built initially and simply, more work went into building out a function that dynamically pulls the list of available models from Anthropic, OpenAI, DeepSeek, and Google for the config wizard so the list of available models are always up to date
+
