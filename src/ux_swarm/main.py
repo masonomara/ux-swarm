@@ -2,9 +2,8 @@ import click
 from importlib.metadata import metadata, PackageNotFoundError
 
 from ux_swarm.cli import SmartGroup
-from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG
+from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, run_config_wizard
 from ux_swarm.menu import select
-from ux_swarm.wizard import run_config_wizard
 
 try:
     _meta = metadata("ux-swarm")
