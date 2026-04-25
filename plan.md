@@ -383,13 +383,13 @@ dependencies = [
 
 ### Phase 1 — Dependencies
 
-- [ ] Add `rich>=13.0` to `pyproject.toml` dependencies
-- [ ] Add `playwright>=1.40` to `pyproject.toml` dependencies
-- [ ] Run `uv sync`
+- [x] Add `rich>=13.0` to `pyproject.toml` dependencies
+- [x] Add `playwright>=1.40` to `pyproject.toml` dependencies
+- [x] Run `uv sync`
 
 ### Phase 2 — `menu.py`
 
-- [ ] Create `src/ux_swarm/menu.py`
+- [x] Create `src/ux_swarm/menu.py`
 - [ ] Define `GoBack` exception class
 - [ ] Port `navigate()` from beta — up/down arrow handling, clamped index
 - [ ] Port `select()` from beta — in-place redraw loop, collapse on Enter
