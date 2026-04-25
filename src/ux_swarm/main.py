@@ -1,7 +1,22 @@
+import os
+
 import click
 from importlib.metadata import metadata, PackageNotFoundError
+from rich.console import Console
 
 from ux_swarm.cli import SmartGroup
+from ux_swarm.config import (
+    GLOBAL_CONFIG,
+    LOCAL_CONFIG,
+    PROVIDERS,
+    ProviderAuthError,
+    check_chromium_installed,
+    fetch_provider_models,
+    save_config,
+)
+from ux_swarm.menu import GoBack, select
+
+console = Console()
 
 try:
     _meta = metadata("ux-swarm")
@@ -18,6 +33,19 @@ except PackageNotFoundError:
 def cli(ctx):
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
+
+
+def _wizard_step_provider(state: dict) -> None:
+    names = [p["name"] for p in PROVIDERS]
+    default = next(
+        (i for i, p in enumerate(PROVIDERS) if p["key"] == state.get("provider_key")),
+        0,
+    )
+    chosen_name = select("LLM Provider", names, default_index=default)
+    provider = next(p for p in PROVIDERS if p["name"] == chosen_name)
+    state["provider_key"] = provider["key"]
+    state["provider_env"] = provider["env"]
+    state["provider_name"] = provider["name"]
 
 
 # TODO: find a permanent home for these once the run command is built out
