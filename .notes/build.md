@@ -136,3 +136,15 @@ The naming feels weird because Python has two conventions that don't match: Fold
 - We have a few argument surfaces defined: `url`, `task`, plus `--users`, `--max-steps`, `--viewport`, `--verbose`
 - `swarm` and `ux-swarm` are installed as real CLI commands via `pyproject.toml` + `uv pip install -e .`
 - Folder structure is aligned with uv best practices
+
+## Pydantic and BaseModel
+
+I installed Pydantic with `uv add pydantic` because the app receives responses from LLM models and external APIs — data we don't control. Pydantic catches malformed or unexpected types at runtime, at the boundary where that data enters the system.
+
+`BaseModel` is the type blueprint. Each field and its type is declared at runtime, then Pydantic enforces them at the moment an object is created.
+
+Pydantic library provides `model_validate()` for parsing raw JSON into a proper Python object, and `model_json_schema()` for sending the schema to the LLM so it knows exactly what shape to return.
+
+The data shapes will evolve and that's ok. What matters now is that we now have the "three systems of governance" in place - the docs, the models, and the code. Each one describes the same thing at a different level. We'll eventually add tests so all three stay in sync.
+
+Models were created in `src/ux_swarm/models.py`
