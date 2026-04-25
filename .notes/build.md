@@ -158,3 +158,4 @@ The first thing I did was create the menu navigation function, this is a complic
 
 Then, we built out `config.py` with a list of providers and config and error handling. Once the file was built initially and simply, more work went into building out a function that dynamically pulls the list of available models from Anthropic, OpenAI, DeepSeek, and Google for the config wizard so the list of available models are always up to date
 
+Lastly in config, we set up save and laod fucntions for the local disc, and a Playwright check function.
