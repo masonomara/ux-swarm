@@ -30,6 +30,12 @@ RUN_DEFAULTS: dict[str, int | float] = {
 }
 
 
+# TODO: move alongside run command output logic once that is built out
+def ensure_swarm_structure() -> None:
+    from ux_swarm.config import LOCAL_DIR
+    (LOCAL_DIR / "reports").mkdir(parents=True, exist_ok=True)
+
+
 @cli.command(hidden=True)
 @click.argument("target")
 @click.argument("task")
