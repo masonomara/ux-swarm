@@ -78,6 +78,102 @@ def _wizard_step_api_key(state: dict) -> None:
             raise SystemExit(1)
 
 
+def _wizard_step_model(state: dict) -> None:
+    options = state["model_options"]
+    default = next(
+        (i for i, m in enumerate(options) if m == state.get("model")),
+        0,
+    )
+    state["model"] = select("Model", options, default_index=default)
+
+
+def _wizard_step_playwright(state: dict) -> None:
+    console.print("\n[bold]Playwright[/]")
+    console.print("─" * 40)
+
+    if check_chromium_installed():
+        console.print("  [green]•[/] Chromium installed")
+        state["playwright_ok"] = True
+        return
+
+    console.print("  [yellow]•[/] Chromium not found — required for browser mode\n")
+    choice = select("Install Chromium now?", ["Yes", "No, skip for now"])
+
+    if choice.startswith("No"):
+        state["playwright_ok"] = False
+        return
+
+    _install_chromium()
+    state["playwright_ok"] = True
+
+
+def _install_chromium() -> None:
+    import subprocess
+    with console.status("Installing Chromium…"):
+        result = subprocess.run(
+            ["playwright", "install", "chromium"],
+            capture_output=True,
+            text=True,
+        )
+    if result.returncode != 0:
+        console.print("[red]Chromium install failed.[/]")
+        if result.stderr.strip():
+            console.print(f"[dim]{result.stderr.strip()}[/]")
+        console.print("[dim]Run: playwright install chromium[/]")
+    else:
+        console.print("[green]✓[/] Chromium installed")
+
+
+def _wizard_step_confirm(state: dict) -> None:
+    from rich.table import Table
+
+    key = state["api_key"]
+    masked = key[:8] + "…" + key[-4:] if len(key) > 12 else "•" * len(key)
+    source_note = " [dim](from environment)[/]" if state.get("api_key_source") == "env" else ""
+    chromium_status = "[green]✓ installed[/]" if state.get("playwright_ok") else "[yellow]not installed[/]"
+
+    table = Table(show_header=False, box=None, padding=(0, 2))
+    table.add_column(style="dim")
+    table.add_column()
+    table.add_row("Provider", state["provider_name"])
+    table.add_row("Model", state["model"])
+    table.add_row("API Key", f"{masked}{source_note}")
+    table.add_row("Chromium", chromium_status)
+
+    console.print()
+    console.print(table)
+    console.print()
+
+    choice = select("Save config?", ["Yes, save", "Go back"])
+    if choice == "Go back":
+        raise GoBack
+
+
+def _run_config_wizard() -> None:
+    state: dict = {}
+    steps = [
+        _wizard_step_provider,
+        _wizard_step_api_key,
+        _wizard_step_model,
+        _wizard_step_playwright,
+        _wizard_step_confirm,
+    ]
+    i = 0
+    while i < len(steps):
+        try:
+            steps[i](state)
+            i += 1
+        except GoBack:
+            i = max(0, i - 1)
+
+    saved_path = save_config({
+        "provider": state["provider_key"],
+        "api_key": state["api_key"],
+        "model": state["model"],
+    })
+    console.print(f"\n[green]Config saved →[/] {saved_path}\n")
+
+
 # TODO: find a permanent home for these once the run command is built out
 RUN_DEFAULTS: dict[str, int | float] = {
     "default_users": 20,
