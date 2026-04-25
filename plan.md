@@ -395,9 +395,9 @@ dependencies = [
 
 ### Phase 5 — Wiring in `main.py`
 
-- [ ] Import `LOCAL_CONFIG`, `GLOBAL_CONFIG` from `config`
-- [ ] Add first-run check to `cli()` — existence check on both config paths, `select("Run setup?")` prompt
-- [ ] Add `config` command — single call to `_run_config_wizard()`
+- [x] Import `LOCAL_CONFIG`, `GLOBAL_CONFIG` from `config`
+- [x] Add first-run check to `cli()` — existence check on both config paths, `select("Run setup?")` prompt
+- [x] Add `config` command — single call to `run_config_wizard()`
 
 ### Phase 6 — Smoke Test
 
