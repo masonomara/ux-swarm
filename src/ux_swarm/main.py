@@ -48,6 +48,36 @@ def _wizard_step_provider(state: dict) -> None:
     state["provider_name"] = provider["name"]
 
 
+def _wizard_step_api_key(state: dict) -> None:
+    env_var = state["provider_env"]
+    env_val = os.environ.get(env_var, "")
+
+    if env_val:
+        console.print(f"[dim]Press Enter to use ${env_var} from environment[/]")
+
+    while True:
+        raw = click.prompt(f"API Key ({env_var})", default="", show_default=False).strip()
+        api_key = raw or env_val
+
+        if not api_key:
+            console.print("[red]No API key found. Enter a key or set the env var.[/]")
+            continue
+
+        try:
+            model_options = fetch_provider_models(state["provider_key"], api_key)
+            state["api_key"] = api_key
+            state["api_key_source"] = "env" if (not raw and env_val) else "entered"
+            state["model_options"] = model_options
+            return
+        except ProviderAuthError:
+            console.print("[red]Invalid API key, please try again.[/]")
+        except Exception as exc:
+            console.print(f"[red]Could not reach {state['provider_name']} API.[/]")
+            console.print(f"[dim]{exc}[/]")
+            console.print("[dim]Check your network and try again.[/]")
+            raise SystemExit(1)
+
+
 # TODO: find a permanent home for these once the run command is built out
 RUN_DEFAULTS: dict[str, int | float] = {
     "default_users": 20,
