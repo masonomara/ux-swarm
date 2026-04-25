@@ -92,20 +92,6 @@ PROVIDERS: list[dict[str, str]] = [
 ]
 ```
 
-### Run defaults
-
-The wizard writes `provider`, `api_key`, `model` to disk. These run parameters are separate — never written by the wizard, merged in at load time.
-
-```python
-RUN_DEFAULTS: dict[str, int | float] = {
-    "default_users": 20,
-    "max_steps": 3,
-    "viewport_width": 1280,
-    "max_concurrent_browser": 5,
-    "max_concurrent_screenshot": 20,
-}
-```
-
 ### `ProviderAuthError`
 
 ```python
@@ -115,56 +101,30 @@ class ProviderAuthError(Exception):
 
 ### `provider_env_var(provider_key)`
 
-Maps a provider key to its env var name.
+Maps a provider key to its env var name. No fallback — unknown key raises `StopIteration`.
 
 ### `fetch_provider_models(provider_key, api_key)`
 
-Live HTTP fetch of the provider's model list — same four-branch logic as the beta. No fallback. Non-auth failures propagate; the wizard caller handles them.
+Live HTTP fetch of the provider's model list. No fallback. Non-auth failures propagate; the wizard caller handles them.
 
-**LiteLLM model ID conventions:**
+**LiteLLM model ID conventions (validated against provider docs):**
 
-- OpenAI: no prefix — `gpt-4o`, `gpt-4o-mini`, `o3`, `o4-mini`
-- Anthropic: `anthropic/` prefix — `anthropic/claude-sonnet-4-20250514`
-- Gemini: `gemini/` prefix — `gemini/gemini-2.5-flash`
+- OpenAI: `openai/` prefix — `openai/gpt-4o`, `openai/o3`. Filter: strip fine-tunes (`:`), keep `gpt-`, `chatgpt-`, `o[digit]`
+- Anthropic: `anthropic/` prefix — `anthropic/claude-sonnet-4-20250514`. Fetch with `?limit=1000`
+- Gemini: `gemini/` prefix — `gemini/gemini-2.5-flash`. Filter: `startswith("gemini-")` and `"embedding" not in id`
 - DeepSeek: `deepseek/` prefix — `deepseek/deepseek-chat`
 
-The Anthropic branch returns raw IDs (`claude-sonnet-4-20250514`). Prefix them:
-
-```python
-return [f"anthropic/{m['id']}" for m in data.get("data", [])]
-```
-
-OpenAI IDs need no prefix. Keep the beta's filter (strip fine-tunes, keep `gpt-` and `o[digit]` prefixed).
-
-### `check_playwright_browsers()`
+### `check_chromium_installed()`
 
 Returns `bool`. Unchanged from beta.
 
 ### `load_config()`
 
-Merges `RUN_DEFAULTS` → global config → local config. `provider`, `api_key`, `model` come from the file only.
-
-```python
-def load_config() -> dict:
-    resolved = dict(RUN_DEFAULTS)
-    for path in (GLOBAL_CONFIG, LOCAL_CONFIG):
-        if path.exists():
-            try:
-                resolved.update(json.loads(path.read_text()))
-            except json.JSONDecodeError as exc:
-                raise click.ClickException(
-                    f"Config file is not valid JSON: {path}\n{exc}\nFix or delete it and run again."
-                ) from exc
-    return resolved
-```
+Merges global config → local config into an empty dict. `provider`, `api_key`, `model` come from the file only. `json.JSONDecodeError` → `click.ClickException`.
 
 ### `save_config(data, *, local=True)`
 
 Writes to `LOCAL_CONFIG` by default. Creates parent dirs. Returns path written.
-
-### `ensure_swarm_structure()`
-
-Creates `.swarm/reports/`.
 
 ---
 
@@ -261,7 +221,7 @@ def _wizard_step_playwright(state: dict) -> None:
     console.print("\n[bold]Playwright[/]")
     console.print("─" * 40)
 
-    if check_playwright_browsers():
+    if check_chromium_installed():
         console.print("  [green]•[/] Chromium installed")
         state["playwright_ok"] = True
         return
@@ -402,20 +362,19 @@ dependencies = [
 - [x] Create `src/ux_swarm/config.py`
 - [x] Add `LOCAL_DIR`, `LOCAL_CONFIG`, `GLOBAL_CONFIG` path constants
 - [x] Define `PROVIDERS` list — four entries, three keys each (`name`, `key`, `env`)
-- [x] Define `RUN_DEFAULTS` dict — five run parameters
 - [x] Define `ProviderAuthError` exception
-- [x] Implement `provider_env_var()` — key → env var name, fallback to `OPENAI_API_KEY`
-- [x] Implement `fetch_provider_models()` — OpenAI branch (filter fine-tunes and non-chat models)
-- [x] Implement `fetch_provider_models()` — Anthropic branch (prefix each ID with `anthropic/`)
-- [x] Implement `fetch_provider_models()` — Gemini branch (filter to `gemini-` IDs, prefix with `gemini/`)
-- [x] Implement `fetch_provider_models()` — DeepSeek branch (prefix each ID with `deepseek/`)
+- [x] Implement `provider_env_var()` — key → env var name, no fallback
+- [x] Implement `fetch_provider_models()` — OpenAI branch (prefix `openai/`, filter fine-tunes and non-chat models, add `chatgpt-`)
+- [x] Implement `fetch_provider_models()` — Anthropic branch (prefix `anthropic/`, `?limit=1000`)
+- [x] Implement `fetch_provider_models()` — Gemini branch (prefix `gemini/`, filter embeddings)
+- [x] Implement `fetch_provider_models()` — DeepSeek branch (prefix `deepseek/`)
 - [x] Wire auth failure (HTTP 401/403) → raise `ProviderAuthError` in all four branches
 - [x] Wire non-auth failures to propagate (no bare `except` swallowing them)
-- [ ] Implement `check_playwright_browsers()` — import `sync_playwright`, check executable path exists
-- [ ] Implement `load_config()` — merge `RUN_DEFAULTS` → global file → local file
-- [ ] Add `json.JSONDecodeError` → `click.ClickException` in `load_config()`
-- [ ] Implement `save_config()` — write to `LOCAL_CONFIG`, `mkdir(parents=True, exist_ok=True)`
-- [ ] Implement `ensure_swarm_structure()` — create `.swarm/reports/`
+- [x] Implement `check_chromium_installed()` — import `sync_playwright`, check executable path exists
+- [x] Implement `load_config()` — merge global file → local file, start from empty dict
+- [x] Add `json.JSONDecodeError` → `click.ClickException` in `load_config()`
+- [x] Implement `save_config()` — write to `LOCAL_CONFIG`, `mkdir(parents=True, exist_ok=True)`
+- [x] `RUN_DEFAULTS` and `ensure_swarm_structure()` moved to `main.py` (not config wizard concerns)
 
 ### Phase 4 — Wizard steps in `main.py`
 
@@ -426,7 +385,7 @@ dependencies = [
 - [ ] Implement `_wizard_step_api_key()` — call `fetch_provider_models()`, loop on `ProviderAuthError`
 - [ ] Implement `_wizard_step_api_key()` — non-auth exception → print error, `SystemExit(1)`
 - [ ] Implement `_wizard_step_model()` — `select()` with restored `default_index` from `state`
-- [ ] Implement `_wizard_step_playwright()` — call `check_playwright_browsers()`, branch on result
+- [ ] Implement `_wizard_step_playwright()` — call `check_chromium_installed()`, branch on result
 - [ ] Implement `_install_chromium()` — `subprocess.run` with `capture_output=True`, no `check=True`
 - [ ] Implement `_install_chromium()` — non-zero returncode → print error + `result.stderr`, no raise
 - [ ] Implement `_wizard_step_confirm()` — Rich table with provider, model, masked key, Chromium status

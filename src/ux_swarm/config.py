@@ -121,7 +121,7 @@ def save_config(data: dict, *, local: bool = True) -> Path:
     return target
 
 
-def check_playwright_browsers() -> bool:
+def check_chromium_installed() -> bool:
     try:
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
