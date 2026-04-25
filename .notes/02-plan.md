@@ -5,9 +5,9 @@
 The project will grow from a single `main.py` into a package. Introduce `ux_swarm/` early — it keeps `main.py` as a thin CLI entry point and prevents a painful refactor later.
 
 ```
-main.py                        ← CLI entry point (already scaffolded)
 ux_swarm/
   __init__.py
+  main.py                      ← CLI entry point (already scaffolded)
   cli.py                       ← SmartGroup and shared CLI utilities
   models.py                    ← Pydantic models (Phase 1)
   config.py                    ← Config loading (Phase 2)
@@ -18,7 +18,7 @@ ux_swarm/
   display.py                   ← Rich terminal output (Phase 5)
 ```
 
-Update `pyproject.toml` entry points to `main:cli` — no change needed since `main.py` stays at root. Imports from `ux_swarm` work because the package is in the same directory.
+Entry points in `pyproject.toml` point to `ux_swarm.main:cli`. Build backend is `uv_build` (native uv, no hatchling) with `module-root = ""` so uv finds the package at the project root.
 
 ---
 

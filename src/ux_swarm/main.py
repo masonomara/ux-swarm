@@ -21,10 +21,8 @@ class SmartGroup(click.Group):
     @staticmethod
     def _looks_like_target(arg):
         extensions = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
-        return (
-            arg.startswith(("http://", "https://"))
-            or any(arg.endswith(ext) for ext in extensions)
-        )
+        return (arg.startswith(("http://", "https://"))
+                or any(arg.endswith(ext) for ext in extensions))
 
 
 @click.group(cls=SmartGroup, invoke_without_command=True, help=__description__)

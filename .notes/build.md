@@ -100,13 +100,33 @@ swarm https://example.com "complete the checkout flow"
 swarm screenshot.png "find and submit the contact form"
 ```
 
-## Recap — Done with Scaffolding
+## Build Backend
 
-- UV is set up for package management
-- Click is wired up
-- `run` command is working implicitly — bare URLs/image paths route to it without typing `run`
-- Argument surface defined: `url`, `task`, plus `--users`, `--max-steps`, `--viewport`, `--verbose`
-- `swarm` and `ux-swarm` are installed as real CLI commands via `pyproject.toml` + `uv pip install -e .`
+We need to have this project be a distributable package. The build backend is responsible for that. Traditionally this was done by Hatchling or other tools, but UV now ships its own native build backend (`uv_build`).
+
+uv's default convention for installable packages with CLI entrypoints is `src/<package>` — it's what `uv init --package` generates out of the box. We restructured the folder structure to follow that convention.
+
+1. We added a build system block to `pyproject.toml` and updated the entry points to reflect the new location:
+
+```toml
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+```
+
+```toml
+[project.scripts]
+ux-swarm = "ux_swarm.main:cli"
+swarm = "ux_swarm.main:cli"
+```
+
+2. We moved main.py and added `__init__.py`:
+
+```
+main.py  →  src/ux_swarm/main.py
+```
+
+The naming feels weird because Python has two conventions that don't match: Folders and imports use underscores (`ux_swarm`), install names and CLI commands use hyphens (`ux-swarm`, `swarm`)
 
 ## Recap - Done with Scaffolding
 
@@ -115,3 +135,4 @@ swarm screenshot.png "find and submit the contact form"
 - `run` command is working implicitly, no need to type it in
 - We have a few argument surfaces defined: `url`, `task`, plus `--users`, `--max-steps`, `--viewport`, `--verbose`
 - `swarm` and `ux-swarm` are installed as real CLI commands via `pyproject.toml` + `uv pip install -e .`
+- Folder structure is aligned with uv best practices
