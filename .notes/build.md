@@ -22,12 +22,9 @@ poetry lock -> Uv lock
 Poetry build -> Uv build
 Poetry publish -> Uv publish
 
-
 ### Setting up UV
 
-
 So so far, we have **click** and **uv** as our tools
-
 
 Hers the setup workflow:
 
@@ -55,10 +52,24 @@ uv sync
 uv run main.py
 ```
 
-
 Note, somehtign dfferetn abotu UV from other projects, the virtual environment in in .venv, its not autorunning whenever im doign developing, dependencies are automatically put into .venv and then when i run the command through uv it autmacally runs it from the venv. keeps it seerated, which I like.
-
 
 ## Click COnventions
 
+lets run :
+
+```bash
+uv add click
+```
+
 I added conventiosn to CLAUDE.md based on Simon Willison;s [blog post](https://simonwillison.net/2023/Sep/30/cli-tools-python/) for my own notes anduseful for claude to know. I have not yet nstalled click, but I am committed to using it/
+
+**Arguments** are good for happy paths, thigns that every run needs to run, for my build, the arguments will be items like the target (URL or screenshot path) and the task. so my argmeuents are target and task.
+
+ux-swarm [target] [task]
+
+ex.
+ux-swarm https://example.com "complete the checkout flow"
+ux-swarm screenshot.png "find and submit the contact form"
+
+**Options** re good for modifying behavior and defaults
