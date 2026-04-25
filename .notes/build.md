@@ -154,4 +154,5 @@ Models were created in `src/ux_swarm/models.py`
 
 Started with adding two dependencies: **Rich** for stylized terminal output (colored text, spinner, etc) and **Playwright** so we can run checks on teh Chromium browser binary is already installed, and becuase it;s used during `run`
 
+The first thing I did was create the menu navigation function, this is a complicated function with rewrites whose data can be ported in from another component, makes sense to keep in its own `menu.py` file
 

@@ -390,12 +390,12 @@ dependencies = [
 ### Phase 2 — `menu.py`
 
 - [x] Create `src/ux_swarm/menu.py`
-- [ ] Define `GoBack` exception class
-- [ ] Port `navigate()` from beta — up/down arrow handling, clamped index
-- [ ] Port `select()` from beta — in-place redraw loop, collapse on Enter
-- [ ] Add `default_index` parameter to `select()`
-- [ ] Add Escape (`\x1b`) → erase menu, print `← back`, raise `GoBack`
-- [ ] Add Ctrl-C (`\x03`) → erase menu, print `interrupted`, `SystemExit(130)`
+- [x] Define `GoBack` exception class
+- [x] Port `navigate()` from beta — up/down arrow handling, clamped index
+- [x] Port `select()` from beta — in-place redraw loop, collapse on Enter
+- [x] Add `default_index` parameter to `select()`
+- [x] Add Escape (`\x1b`) → erase menu, print `← back`, raise `GoBack`
+- [x] Add Ctrl-C (`\x03`) → erase menu, print `interrupted`, `SystemExit(130)`
 
 ### Phase 3 — `config.py`
 
