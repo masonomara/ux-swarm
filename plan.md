@@ -53,27 +53,27 @@ Nothing else changes.
 
 ### Phase 2 — Fill in `run()` in `src/ux_swarm/main.py`
 
-- [ ] Add imports at top of file: `Path` from `pathlib`, `datetime` + `timezone` from `datetime`, `AgentResult` + `UserType` from `ux_swarm.models`, `run_screenshot_agent` from `ux_swarm.agent`, `LOCAL_DIR` from `ux_swarm.config`
-- [ ] Write `_print_result(target, task, model_id, decision, in_tok, out_tok) -> None`
-  - [ ] Opening `_console.rule(style="dim")`
-  - [ ] Header: `{filename} — "{task}"`
-  - [ ] Comment in bold
-  - [ ] `Target` and `Reason` labeled fields
-  - [ ] `Friction` section with bullet list — omit section entirely if `friction_observed` is empty
-  - [ ] `Completed` / `Abandoned` status line — dim when false, normal when true
-  - [ ] Token footer dimmed: `{model_id} · {in_tok} in / {out_tok} out tokens`
-  - [ ] Closing `_console.rule(style="dim")`
-- [ ] Fill in `run()` body
-  - [ ] Load config with `load_config()`, raise `ClickException` if `model` or `api_key` missing
-  - [ ] Parse `provider` and `model_id` by splitting `config["model"]` on `"/"`
-  - [ ] Guard: raise `ClickException` for URL targets with redirect message
-  - [ ] Instantiate default `UserType` (Krug-based description, label `"Default User"`)
-  - [ ] Call `run_screenshot_agent()` inside `_console.status()` spinner showing filename + task
-  - [ ] Wrap call in try/except: re-raise if `--verbose`, else wrap in `ClickException`
-  - [ ] Map `ScreenshotDecision` fields to `AgentResult` (`steps_taken=1`, `cost=0.0`)
-  - [ ] Call `ensure_swarm_structure()` to create `.swarm/reports/` if needed
-  - [ ] Write `result.model_dump_json(indent=2)` to `.swarm/reports/{timestamp}_screenshot.json`
-  - [ ] Call `_print_result()`
+- [x] Add imports at top of file: `Path` from `pathlib`, `datetime` + `timezone` from `datetime`, `AgentResult` + `UserType` from `ux_swarm.models`, `run_screenshot_agent` from `ux_swarm.agent`, `LOCAL_DIR` from `ux_swarm.config`
+- [x] Write `_print_result(target, task, model_id, decision, in_tok, out_tok) -> None`
+  - [x] Opening `_console.rule(style="dim")`
+  - [x] Header: `{filename} — "{task}"`
+  - [x] Comment in bold
+  - [x] `Target` and `Reason` labeled fields
+  - [x] `Friction` section with bullet list — omit section entirely if `friction_observed` is empty
+  - [x] `Completed` / `Abandoned` status line — dim when false, normal when true
+  - [x] Token footer dimmed: `{model_id} · {in_tok} in / {out_tok} out tokens`
+  - [x] Closing `_console.rule(style="dim")`
+- [x] Fill in `run()` body
+  - [x] Load config with `load_config()`, raise `ClickException` if `model` or `api_key` missing
+  - [x] Parse `provider` and `model_id` by splitting `config["model"]` on `"/"`
+  - [x] Guard: raise `ClickException` for URL targets with redirect message
+  - [x] Instantiate default `UserType` (Krug-based description, label `"Default User"`)
+  - [x] Call `run_screenshot_agent()` inside `_console.status()` spinner showing filename + task
+  - [x] Wrap call in try/except: re-raise if `--verbose`, else wrap in `ClickException`
+  - [x] Map `ScreenshotDecision` fields to `AgentResult` (`steps_taken=1`, `cost=0.0`)
+  - [x] Call `ensure_swarm_structure()` to create `.swarm/reports/` if needed
+  - [x] Write `result.model_dump_json(indent=2)` to `.swarm/reports/{timestamp}_screenshot.json`
+  - [x] Call `_print_result()`
 
 ### Phase 3 — Validate
 

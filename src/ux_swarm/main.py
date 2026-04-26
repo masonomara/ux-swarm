@@ -1,10 +1,14 @@
 import click
+from datetime import datetime, timezone
 from importlib.metadata import metadata, PackageNotFoundError
+from pathlib import Path
 from rich.console import Console
 
+from ux_swarm.agent import run_screenshot_agent
 from ux_swarm.cli import SmartGroup
-from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, PROVIDERS, playwright_state, load_config, run_config_wizard
+from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, LOCAL_DIR, PROVIDERS, playwright_state, load_config, run_config_wizard
 from ux_swarm.menu import select
+from ux_swarm.models import AgentResult, ScreenshotDecision, UserType
 
 try:
     _meta = metadata("ux-swarm")
@@ -104,10 +108,55 @@ RUN_DEFAULTS: dict[str, int | float] = {
 }
 
 
-# TODO: move alongside run command output logic once that is built out
+# TODO: find a permanent home for this once a storage/reports layer exists
 def ensure_swarm_structure() -> None:
-    from ux_swarm.config import LOCAL_DIR
     (LOCAL_DIR / "reports").mkdir(parents=True, exist_ok=True)
+
+
+def _print_result(
+    target: str,
+    task: str,
+    model_id: str,
+    decision: ScreenshotDecision,
+    in_tok: int,
+    out_tok: int,
+) -> None:
+    filename = Path(target).name
+
+    _console.print()
+    _console.rule(style="dim")
+    _console.print()
+    _console.print(f"  {filename} — \"{task}\"", highlight=False)
+    _console.print()
+    _console.print(f"  [bold]\"{decision.comment}\"[/]", highlight=False)
+    _console.print()
+    _console.print(f"  [dim]Target[/]   {decision.target_element}",
+                   highlight=False)
+    _console.print(f"  [dim]Reason[/]   {decision.reasoning}", highlight=False)
+
+    if decision.friction_observed:
+        _console.print()
+        _console.print("  Friction", highlight=False)
+        for point in decision.friction_observed:
+            _console.print(f"  [dim]•[/] {point}", highlight=False)
+
+    _console.print()
+    completed = "Yes" if decision.completed else "[dim]No[/]"
+    abandoned = "Yes" if decision.abandoned else "[dim]No[/]"
+    _console.print(f"  Completed {completed}   ·   Abandoned {abandoned}",
+                   highlight=False)
+
+    if decision.abandoned and decision.abandonment_reason:
+        _console.print(f"  [dim]Reason[/]   {decision.abandonment_reason}",
+                       highlight=False)
+
+    _console.print()
+    _console.print(
+        f"  [dim]{model_id}  ·  {in_tok} in / {out_tok} out tokens[/]",
+        highlight=False)
+    _console.print()
+    _console.rule(style="dim")
+    _console.print()
 
 
 @cli.command(hidden=True)
@@ -129,7 +178,65 @@ def ensure_swarm_structure() -> None:
 @click.pass_context
 def run(ctx, target, task, users, max_steps, viewport, verbose):
     """Run a swarm of simulated users against a URL or screenshot image."""
-    pass
+    if target.startswith("http://") or target.startswith("https://"):
+        raise click.ClickException(
+            "URL targets require browser mode, which is not yet available. "
+            "Pass a screenshot image path instead.")
+
+    config = load_config()
+    model_full = config.get("model", "")
+    api_key = config.get("api_key", "")
+
+    if not model_full:
+        raise click.ClickException(
+            "No model configured — run `swarm config` to set one.")
+    if not api_key:
+        raise click.ClickException(
+            "No API key configured — run `swarm config` to set one.")
+
+    provider, model_id = model_full.split("/", 1)
+
+    # TODO: move to personas.py once multiple user types exist
+    user_type = UserType(
+        label="Default User",
+        weight=1.0,
+        description=
+        ("You scan rather than read. You satisfice — you pick the first option that "
+         "seems good enough rather than evaluating everything. You muddle through: you "
+         "rarely read instructions and rely on guessing what things do. You have low "
+         "tolerance for friction and give up quickly when confused."),
+    )
+
+    filename = Path(target).name
+    try:
+        with _console.status(f"  {filename} — \"{task}\""):
+            decision, in_tok, out_tok = run_screenshot_agent(
+                target, task, user_type, provider, model_id, api_key)
+    except Exception as exc:
+        if verbose:
+            raise
+        raise click.ClickException(str(exc)) from exc
+
+    result = AgentResult(
+        agent_index=0,
+        user_type=user_type.label,
+        completed=decision.completed,
+        abandoned=decision.abandoned,
+        abandonment_reason=decision.abandonment_reason,
+        friction_points=decision.friction_observed,
+        comment=decision.comment,
+        steps_taken=1,
+        input_tokens=in_tok,
+        output_tokens=out_tok,
+        cost=0.0,
+    )
+
+    ensure_swarm_structure()
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    report_path = LOCAL_DIR / "reports" / f"{timestamp}_screenshot.json"
+    report_path.write_text(result.model_dump_json(indent=2) + "\n")
+
+    _print_result(target, task, model_id, decision, in_tok, out_tok)
 
 
 if __name__ == "__main__":
