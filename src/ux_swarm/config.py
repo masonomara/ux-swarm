@@ -45,10 +45,6 @@ class ProviderAuthError(Exception):
     """Raised when a provider rejects an API key (HTTP 401/403)."""
 
 
-def provider_env_var(provider_key: str) -> str:
-    return next(p["env"] for p in PROVIDERS if p["key"] == provider_key)
-
-
 def fetch_provider_models(provider_key: str, api_key: str) -> list[str]:
     """Fetch available models from the provider API.
 
@@ -147,7 +143,6 @@ def _wizard_step_provider(state: dict) -> None:
                          default_index=default)
     provider = next(p for p in PROVIDERS if p["name"] == chosen_name)
     state["provider_key"] = provider["key"]
-    state["provider_env"] = provider["env"]
     state["provider_name"] = provider["name"]
 
 
@@ -235,7 +230,9 @@ def _wizard_step_playwright(state: dict) -> None:
             state["playwright_ok"] = False
             return
         _install_chromium()
-        console.print("[bold]Would you like to install Chromium for Playwright?:[/] [dim]Installed[/]")
+        console.print(
+            "[bold]Would you like to install Chromium for Playwright?:[/] [dim]Installed[/]"
+        )
 
     state["playwright_ok"] = True
 

@@ -24,9 +24,7 @@ ASCII_ART = ("  __  ___  __    _____      _____   ___  __  ___\n"
 
 def _print_header() -> None:
     _console.print("\n" + ASCII_ART, highlight=False)
-
     _console.print(f"\nux-swarm - v{__version__}\n", highlight=False)
-
     _console.print(
         "Synthetic user testing. Simulates a swarm of users who intereact with your target URL or screenshot to complete a specific task.\n"
     )
@@ -58,13 +56,11 @@ def _print_header() -> None:
     _console.print(f"{model_dot} Model: {model_label}", highlight=False)
     _console.print(f"{pw_dot} Playwright: {playwright_label}\n",
                    highlight=False)
-
     _console.print("---\n")
 
 
 def _print_home() -> None:
     _print_header()
-
     _console.print("Usage:\n")
     _console.print("  swarm <target> <task>\n", highlight=False)
     _console.print("Commands:\n")
