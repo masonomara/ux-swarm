@@ -8,7 +8,7 @@ from ux_swarm.agent import run_screenshot_agent
 from ux_swarm.cli import SmartGroup
 from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, LOCAL_DIR, PROVIDERS, playwright_state, load_config, run_config_wizard
 from ux_swarm.menu import select
-from ux_swarm.models import AgentResult, ScreenshotDecision, UserType
+from ux_swarm.models import AgentResult, UserType
 
 try:
     _meta = metadata("ux-swarm")
@@ -117,9 +117,7 @@ def _print_result(
     target: str,
     task: str,
     model_id: str,
-    decision: ScreenshotDecision,
-    in_tok: int,
-    out_tok: int,
+    result: AgentResult,
 ) -> None:
     filename = Path(target).name
 
@@ -128,31 +126,31 @@ def _print_result(
     _console.print()
     _console.print(f"  {filename} — \"{task}\"", highlight=False)
     _console.print()
-    _console.print(f"  [bold]\"{decision.comment}\"[/]", highlight=False)
+    _console.print(f"  [bold]\"{result.comment}\"[/]", highlight=False)
     _console.print()
-    _console.print(f"  [dim]Target[/]   {decision.target_element}",
+    _console.print(f"  [dim]Target[/]   {result.target_element}",
                    highlight=False)
-    _console.print(f"  [dim]Reason[/]   {decision.reasoning}", highlight=False)
+    _console.print(f"  [dim]Reason[/]   {result.reasoning}", highlight=False)
 
-    if decision.friction_observed:
+    if result.friction_points:
         _console.print()
         _console.print("  Friction", highlight=False)
-        for point in decision.friction_observed:
+        for point in result.friction_points:
             _console.print(f"  [dim]•[/] {point}", highlight=False)
 
     _console.print()
-    completed = "Yes" if decision.completed else "[dim]No[/]"
-    abandoned = "Yes" if decision.abandoned else "[dim]No[/]"
+    completed = "Yes" if result.completed else "[dim]No[/]"
+    abandoned = "Yes" if result.abandoned else "[dim]No[/]"
     _console.print(f"  Completed {completed}   ·   Abandoned {abandoned}",
                    highlight=False)
 
-    if decision.abandoned and decision.abandonment_reason:
-        _console.print(f"  [dim]Reason[/]   {decision.abandonment_reason}",
+    if result.abandoned and result.abandonment_reason:
+        _console.print(f"  [dim]Reason[/]   {result.abandonment_reason}",
                        highlight=False)
 
     _console.print()
     _console.print(
-        f"  [dim]{model_id}  ·  {in_tok} in / {out_tok} out tokens[/]",
+        f"  [dim]{model_id}  ·  {result.input_tokens} in / {result.output_tokens} out tokens[/]",
         highlight=False)
     _console.print()
     _console.rule(style="dim")
@@ -225,6 +223,8 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
         abandonment_reason=decision.abandonment_reason,
         friction_points=decision.friction_observed,
         comment=decision.comment,
+        target_element=decision.target_element,
+        reasoning=decision.reasoning,
         steps_taken=1,
         input_tokens=in_tok,
         output_tokens=out_tok,
@@ -236,7 +236,7 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
     report_path = LOCAL_DIR / "reports" / f"{timestamp}_screenshot.json"
     report_path.write_text(result.model_dump_json(indent=2) + "\n")
 
-    _print_result(target, task, model_id, decision, in_tok, out_tok)
+    _print_result(target, task, model_id, result)
 
 
 if __name__ == "__main__":

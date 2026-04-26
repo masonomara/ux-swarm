@@ -1,17 +1,16 @@
 import base64
 import json
-import urllib.error
 import urllib.request
 from pathlib import Path
 
 from ux_swarm.models import ScreenshotDecision, UserType
 
 _MIME_TYPES = {
-    ".png":  "image/png",
-    ".jpg":  "image/jpeg",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".webp": "image/webp",
-    ".gif":  "image/gif",
+    ".gif": "image/gif",
 }
 
 
@@ -42,8 +41,10 @@ def _build_system_prompt(user_type: UserType) -> str:
 
 
 _OPENAI_COMPAT_ENDPOINTS = {
-    "openai": "https://api.openai.com/v1/chat/completions",
-    "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    "openai":
+    "https://api.openai.com/v1/chat/completions",
+    "gemini":
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
 }
 
 
@@ -56,11 +57,15 @@ def _call_anthropic(
     user_prompt: str,
 ) -> tuple[str, int, int]:
     body = json.dumps({
-        "model": model_id,
-        "max_tokens": 1024,
-        "system": system,
+        "model":
+        model_id,
+        "max_tokens":
+        1024,
+        "system":
+        system,
         "messages": [{
-            "role": "user",
+            "role":
+            "user",
             "content": [
                 {
                     "type": "image",
@@ -70,7 +75,10 @@ def _call_anthropic(
                         "data": image_data,
                     },
                 },
-                {"type": "text", "text": user_prompt},
+                {
+                    "type": "text",
+                    "text": user_prompt
+                },
             ],
         }],
     }).encode()
@@ -103,19 +111,32 @@ def _call_openai_compat(
     user_prompt: str,
 ) -> tuple[str, int, int]:
     body = json.dumps({
-        "model": model_id,
-        "max_tokens": 1024,
-        "response_format": {"type": "json_object"},
+        "model":
+        model_id,
+        "max_tokens":
+        1024,
+        "response_format": {
+            "type": "json_object"
+        },
         "messages": [
-            {"role": "system", "content": system},
             {
-                "role": "user",
+                "role": "system",
+                "content": system
+            },
+            {
+                "role":
+                "user",
                 "content": [
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:{media_type};base64,{image_data}"},
+                        "image_url": {
+                            "url": f"data:{media_type};base64,{image_data}"
+                        },
                     },
-                    {"type": "text", "text": user_prompt},
+                    {
+                        "type": "text",
+                        "text": user_prompt
+                    },
                 ],
             },
         ],
@@ -148,13 +169,20 @@ def _call_llm(
     user_prompt: str,
 ) -> tuple[str, int, int]:
     if provider == "anthropic":
-        return _call_anthropic(model_id, api_key, system, image_data, media_type, user_prompt)
+        return _call_anthropic(model_id, api_key, system, image_data,
+                               media_type, user_prompt)
     if provider in _OPENAI_COMPAT_ENDPOINTS:
         return _call_openai_compat(
             _OPENAI_COMPAT_ENDPOINTS[provider],
-            model_id, api_key, system, image_data, media_type, user_prompt,
+            model_id,
+            api_key,
+            system,
+            image_data,
+            media_type,
+            user_prompt,
         )
-    raise ValueError(f"Unknown provider: {provider!r} — run `swarm config` to reconfigure")
+    raise ValueError(
+        f"Unknown provider: {provider!r} — run `swarm config` to reconfigure")
 
 
 def run_screenshot_agent(
@@ -168,6 +196,7 @@ def run_screenshot_agent(
     image_data, media_type = _load_image(target)
     system = _build_system_prompt(user_type)
     user_prompt = f"Task: {task}"
-    raw, in_tok, out_tok = _call_llm(provider, model_id, api_key, system, image_data, media_type, user_prompt)
+    raw, in_tok, out_tok = _call_llm(provider, model_id, api_key, system,
+                                     image_data, media_type, user_prompt)
     decision = ScreenshotDecision.model_validate_json(raw)
     return decision, in_tok, out_tok
