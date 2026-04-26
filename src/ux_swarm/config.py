@@ -111,12 +111,6 @@ def save_config(data: dict, *, local: bool = True) -> Path:
     return target
 
 
-def check_chromium_installed() -> bool:
-    from playwright.sync_api import sync_playwright
-    with sync_playwright() as p:
-        return Path(p.chromium.executable_path).exists()
-
-
 def _wizard_step_provider(state: dict) -> None:
     names = [p["name"] for p in PROVIDERS]
     default = next(
@@ -177,7 +171,7 @@ def _wizard_step_model(state: dict) -> None:
                             default_index=default)
 
 
-def _playwright_state() -> tuple[bool, bool]:
+def playwright_state() -> tuple[bool, bool]:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -190,7 +184,7 @@ def _playwright_state() -> tuple[bool, bool]:
 
 
 def _wizard_step_playwright(state: dict) -> None:
-    playwright_ok, chromium_ok = _playwright_state()
+    playwright_ok, chromium_ok = playwright_state()
 
     if playwright_ok and chromium_ok:
         console.print(
@@ -206,7 +200,7 @@ def _wizard_step_playwright(state: dict) -> None:
             state["playwright_ok"] = False
             return
         _install_playwright()
-        _, chromium_ok = _playwright_state()
+        _, chromium_ok = playwright_state()
 
     if not chromium_ok:
         choice = select("Would you like to install Chromium for Playwright?",

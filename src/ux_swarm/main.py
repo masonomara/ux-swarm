@@ -3,7 +3,7 @@ from importlib.metadata import metadata, PackageNotFoundError
 from rich.console import Console
 
 from ux_swarm.cli import SmartGroup
-from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, PROVIDERS, check_chromium_installed, load_config, run_config_wizard
+from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, PROVIDERS, playwright_state, load_config, run_config_wizard
 from ux_swarm.menu import select
 
 try:
@@ -31,11 +31,8 @@ def _print_header() -> None:
 
     config = load_config()
 
-    try:
-        playwright_ok = check_chromium_installed()
-    except Exception:
-        playwright_ok = False
-    playwright_label = "Enabled" if playwright_ok else "Needs configuration"
+    _, chromium_ok = playwright_state()
+    playwright_label = "Enabled" if chromium_ok else "Needs configuration"
 
     provider_key = config.get("provider")
     provider_name = (next(
@@ -47,7 +44,7 @@ def _print_header() -> None:
                                     1)[-1] if "/" in raw_model else raw_model
     model_label = model_display if model_display else "Needs configuration"
 
-    pw_dot = "[green]•[/]" if playwright_ok else "[red]•[/]"
+    pw_dot = "[green]•[/]" if chromium_ok else "[red]•[/]"
     provider_dot = "[green]•[/]" if provider_key else "[red]•[/]"
     model_dot = "[green]•[/]" if model_display else "[red]•[/]"
 
