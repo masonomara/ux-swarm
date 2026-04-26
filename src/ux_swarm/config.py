@@ -31,11 +31,6 @@ PROVIDERS: list[dict[str, str]] = [
         "key": "gemini",
         "env": "GEMINI_API_KEY"
     },
-    {
-        "name": "DeepSeek",
-        "key": "deepseek",
-        "env": "DEEPSEEK_API_KEY"
-    },
 ]
 
 console = Console()
@@ -87,15 +82,6 @@ def fetch_provider_models(provider_key: str, api_key: str) -> list[str]:
             return sorted(f"gemini/{m['id']}" for m in data.get("data", [])
                           if m["id"].startswith("gemini-")
                           and "embedding" not in m["id"])
-
-        if provider_key == "deepseek":
-            req = urllib.request.Request(
-                "https://api.deepseek.com/models",
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read())
-            return [f"deepseek/{m['id']}" for m in data.get("data", [])]
 
         raise ValueError(f"Unknown provider: {provider_key}")
 
