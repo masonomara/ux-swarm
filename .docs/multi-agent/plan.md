@@ -36,18 +36,18 @@ _Based on: source audit of `src/ux_swarm/`, beta repo research, and design analy
 
 ### Create
 
-| File | Role |
-|---|---|
-| `src/ux_swarm/personas.py` | Load, validate, distribute `UserType` objects to N agent slots |
-| `src/ux_swarm/swarm.py` | Async multi-agent orchestrator: TaskGroup + semaphore, aggregation |
+| File                       | Role                                                               |
+| -------------------------- | ------------------------------------------------------------------ |
+| `src/ux_swarm/personas.py` | Load, validate, distribute `UserType` objects to N agent slots     |
+| `src/ux_swarm/swarm.py`    | Async multi-agent orchestrator: TaskGroup + semaphore, aggregation |
 
 ### Modify
 
-| File | What Changes |
-|---|---|
-| `pyproject.toml` | Add `litellm` dependency |
-| `src/ux_swarm/agent.py` | Make `_run_single_agent` async via LiteLLM; remove `urllib` provider calls |
-| `src/ux_swarm/main.py` | Wire `--users` flag; add Live display; call swarm; print `SwarmResult`; add `users` command |
+| File                    | What Changes                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------- |
+| `pyproject.toml`        | Add `litellm` dependency                                                                    |
+| `src/ux_swarm/agent.py` | Make `_run_single_agent` async via LiteLLM; remove `urllib` provider calls                  |
+| `src/ux_swarm/main.py`  | Wire `--users` flag; add Live display; call swarm; print `SwarmResult`; add `users` command |
 
 ### Untouched
 
@@ -71,6 +71,8 @@ LiteLLM reads API keys from environment variables. Before calling `asyncio.run()
 ## Phase 1 — `src/ux_swarm/personas.py` (new file)
 
 ### Constants
+
+`personas.py` is the **single source of truth** for all persona definitions. `main.py` has no persona knowledge — it calls `load_users()` and gets back whatever is active. The default persona lives here and nowhere else.
 
 ```python
 from ux_swarm.config import LOCAL_DIR
@@ -96,40 +98,24 @@ DEFAULT_USERS: list[UserType] = [
 ]
 ```
 
-### `load_users(path: str | None = None) -> list[UserType]`
+### `load_users() -> list[UserType]`
 
-Resolution order: caller-supplied path → `.swarm/users.json` → `DEFAULT_USERS`.
+Resolution order: `.swarm/users.json` if it exists → `DEFAULT_USERS`.
 
 ```python
-def load_users(path: str | None = None) -> list[UserType]:
-    if path:
-        file = Path(path)
-    elif USERS_JSON.exists():
-        file = USERS_JSON
-    else:
+def load_users() -> list[UserType]:
+    if not USERS_JSON.exists():
         return list(DEFAULT_USERS)
 
     try:
-        raw = json.loads(file.read_text())
-    except json.JSONDecodeError as exc:
-        raise click.ClickException(
-            f"users.json is not valid JSON: {file}\n{exc}"
-        ) from exc
-
-    if not isinstance(raw, list):
-        raise click.ClickException("users.json must be a JSON array")
-
-    users = []
-    for entry in raw:
-        try:
-            users.append(UserType.model_validate(entry))
-        except Exception as exc:
-            raise click.ClickException(f"Invalid user type entry: {exc}") from exc
-
-    return users if users else list(DEFAULT_USERS)
+        raw = json.loads(USERS_JSON.read_text())
+        users = [UserType.model_validate(entry) for entry in raw]
+        return users if users else list(DEFAULT_USERS)
+    except (json.JSONDecodeError, Exception) as exc:
+        raise click.ClickException(f"users.json is invalid: {exc}") from exc
 ```
 
-A broken file always raises — no silent fallback to defaults. If the file is intentionally empty, fall back to defaults (empty list → defaults).
+A broken file always raises with a message pointing at the file. If the file exists but is empty, fall back to defaults. No path parameter — the resolution path is fixed and callers don't need to override it.
 
 ### `distribute_users(users: list[UserType], n: int) -> list[UserType]`
 
@@ -171,9 +157,27 @@ Called by `swarm users --config`.
 
 ## Phase 2 — `src/ux_swarm/agent.py` (async refactor)
 
-Remove: `_call_anthropic`, `_call_openai_compat`, `_OPENAI_COMPAT_ENDPOINTS`, all `urllib` imports.
+The refactor is a clean swap — LiteLLM replaces the three provider functions and nothing else changes. Here's exactly what the file looks like before and after:
 
-Keep: `_MIME_TYPES`, `_media_type`, `_load_image`, `_build_system_prompt`.
+**Remove** (197 lines of hand-rolled HTTP plumbing):
+
+- `import urllib.request`
+- `_OPENAI_COMPAT_ENDPOINTS` dict
+- `_call_anthropic(...)` — 40-line urllib POST for Anthropic
+- `_call_openai_compat(...)` — 40-line urllib POST for OpenAI/Gemini
+- `_call_llm(...)` — 12-line router that calls one of the above
+
+**Keep unchanged** (the actual agent logic):
+
+- `_MIME_TYPES`, `_media_type` — file extension → MIME string
+- `_load_image` — reads file, base64-encodes
+- `_build_system_prompt` — assembles persona + schema into system prompt
+
+**Add** (async LiteLLM call + retry):
+
+- `import asyncio`, `import litellm`, `litellm.suppress_debug_info = True`
+- `_RETRY_DELAYS = (60, 120, 240)`
+- `run_screenshot_agent` rewritten as `async def` using `acompletion`
 
 ### New: `_RETRY_DELAYS`
 
@@ -267,6 +271,7 @@ async def run_screenshot_agent(target, task, user_type, model, api_key):
 ```
 
 Key details:
+
 - Parse failure falls back to a synthetic `ScreenshotDecision` with `completed=False`, `abandoned=True`. This counts as a non-completion without crashing the swarm.
 - LiteLLM accepts the `"anthropic/claude-sonnet-4-20250514"` format directly and routes accordingly.
 - `response_format={"type": "json_object"}` works for OpenAI and Gemini. For Anthropic, LiteLLM translates this to a prompt-level instruction (Anthropic doesn't have a native `response_format` field).
@@ -280,7 +285,10 @@ import litellm
 litellm.suppress_debug_info = True
 ```
 
+`litellm.suppress_debug_info = True` silences LiteLLM's startup output. Without it, LiteLLM prints its version, provider routing decisions, and HTTP request details to the terminal on every run — noise that competes with the progress display. This flag mutes all of it.
+
 Remove from file:
+
 - `import urllib.request`
 - `_OPENAI_COMPAT_ENDPOINTS`
 - `_call_anthropic`
@@ -324,7 +332,9 @@ async def run_screenshot_swarm(
 
 ### Concurrency Design
 
-One `asyncio.Semaphore(max_concurrent)` throttles LLM calls. In screenshot mode, each agent makes exactly one LLM call — the concurrency semaphore IS the LLM semaphore. No need for a second semaphore (unlike browser mode, which has multiple LLM calls per agent per step).
+One `asyncio.Semaphore(max_concurrent)` throttles LLM calls. A semaphore is a counter that limits how many tasks can do something at the same time. `asyncio.Semaphore(20)` means at most 20 agents can be actively waiting on an LLM response simultaneously — the 21st waits at the door until one of the 20 finishes and releases its slot. Without it, `--users 100` would fire 100 simultaneous API calls and immediately hit rate limits.
+
+In screenshot mode, each agent makes exactly one LLM call — so the concurrency semaphore IS the LLM semaphore. No need for a second semaphore (unlike browser mode, where agents make multiple LLM calls across steps and the two limits are independent).
 
 Use **`asyncio.TaskGroup`** (not `asyncio.gather`). TaskGroup cancels siblings on unhandled exceptions immediately. Per-agent exceptions are caught inside each task to prevent TaskGroup cancellation — `CancelledError` is always re-raised.
 
@@ -432,7 +442,7 @@ def _aggregate(
     )
 ```
 
-`SwarmResult.users` is the count of *successful* agents (those that returned a valid result), not `num_agents`. This matches the beta's pattern — failed agents are excluded from the denominator.
+`SwarmResult.users` is the count of _successful_ agents (those that returned a valid result), not `num_agents`. This matches the beta's pattern — failed agents are excluded from the denominator.
 
 `friction_points` in `SwarmResult` is raw across all agents, not deduplicated — this is intentional per the existing model docstring.
 
@@ -443,6 +453,8 @@ def _aggregate(
 ## Phase 4 — `src/ux_swarm/main.py` (wiring)
 
 ### API Key Injection
+
+LiteLLM doesn't accept an API key as a function argument — it reads from environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`). The key the user configured through `swarm config` is stored in `.swarm/config.json`, not in the environment. So before calling the swarm, we write it there.
 
 Add before `asyncio.run()` in the `run` command:
 
@@ -455,17 +467,16 @@ _PROVIDER_ENV_VARS = {
 
 def _inject_api_key(provider: str, api_key: str) -> None:
     env_var = _PROVIDER_ENV_VARS.get(provider)
-    if env_var and api_key and not os.environ.get(env_var):
+    if env_var and api_key:
         os.environ[env_var] = api_key
 ```
-
-Existing env vars are not overwritten — a pre-set `ANTHROPIC_API_KEY` takes precedence over config (supports CI/CD).
 
 Add `import os` to main.py imports.
 
 ### `run` Command Changes
 
 Remove:
+
 - Hardcoded `UserType(label="Default User", ...)` block
 - `run_screenshot_agent` import and call
 - Single-agent `AgentResult` construction
@@ -555,6 +566,7 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
 ```
 
 Add to imports:
+
 ```python
 import asyncio
 import os
@@ -700,53 +712,188 @@ RUN_DEFAULTS: dict[str, int | float] = {
 
 ## Todo
 
-### Phase 1 — `personas.py`
+### Phase 1 — `src/ux_swarm/personas.py` (new file)
 
-- [ ] Create `src/ux_swarm/personas.py`
-- [ ] Define `USERS_JSON = LOCAL_DIR / "users.json"`
-- [ ] Define `DEFAULT_USERS` list with the Krug-based default persona
-- [ ] Implement `load_users(path=None) -> list[UserType]`
-- [ ] Implement `distribute_users(users, n) -> list[UserType]`
-- [ ] Implement `write_default_users() -> Path`
+- [x] Create `src/ux_swarm/personas.py`
+- [x] Add imports: `json`, `Path` from `pathlib`, `click`, `LOCAL_DIR` from `ux_swarm.config`, `UserType` from `ux_swarm.models`
+- [x] Define `USERS_JSON = LOCAL_DIR / "users.json"`
+- [x] Define `DEFAULT_USERS: list[UserType]` with the single Krug-based default persona
+- [x] Implement `load_users() -> list[UserType]`
+  - [x] Return `list(DEFAULT_USERS)` if `USERS_JSON` does not exist
+  - [x] Parse `USERS_JSON` with `json.loads`
+  - [x] Validate each entry with `UserType.model_validate`
+  - [x] Return defaults if parsed list is empty
+  - [x] Raise `click.ClickException` on any parse or validation failure
+- [x] Implement `distribute_users(users: list[UserType], n: int) -> list[UserType]`
+  - [x] Compute `total_weight = sum(u.weight for u in users)`
+  - [x] For each user, compute `max(1, round((u.weight / total_weight) * n))` slots
+  - [x] Trim to exactly `n` if overshoot (`slots[:n]`)
+  - [x] Pad with `users[0]` if undershoot (`while len < n`)
+  - [x] Return the flat slot list
+- [x] Implement `write_default_users() -> Path`
+  - [x] `LOCAL_DIR.mkdir(parents=True, exist_ok=True)`
+  - [x] Serialize `DEFAULT_USERS` with `[u.model_dump() for u in DEFAULT_USERS]`
+  - [x] Write with `json.dumps(..., indent=2) + "\n"`
+  - [x] Return `USERS_JSON`
 
-### Phase 2 — `agent.py` async refactor
+---
 
-- [ ] Add `litellm` to `pyproject.toml` dependencies (`uv add litellm`)
-- [ ] Add `import asyncio`, `import litellm`, `litellm.suppress_debug_info = True` at top of `agent.py`
-- [ ] Remove `import urllib.request`
-- [ ] Remove `_OPENAI_COMPAT_ENDPOINTS`, `_call_anthropic`, `_call_openai_compat`, `_call_llm`
-- [ ] Replace `run_screenshot_agent` with an `async def` version using `acompletion`
-- [ ] Add `_RETRY_DELAYS = (60, 120, 240)` and implement retry loop with exponential backoff
-- [ ] Add parse-failure fallback to synthetic `ScreenshotDecision` (completed=False, abandoned=True)
-- [ ] Update return type to `tuple[ScreenshotDecision, int, int, float]` (adds cost)
+### Phase 2 — `src/ux_swarm/agent.py` (async refactor)
 
-### Phase 3 — `swarm.py`
+- [ ] Add `litellm` to `pyproject.toml` dependencies: run `uv add litellm`
+- [ ] **Imports** — update the import block:
+  - [ ] Add `import asyncio`
+  - [ ] Add `import litellm` and set `litellm.suppress_debug_info = True` at module level
+  - [ ] Add `from litellm import acompletion`
+  - [ ] Add `from litellm.exceptions import RateLimitError`
+  - [ ] Add `from litellm.utils import completion_cost`
+  - [ ] Remove `import urllib.request`
+- [ ] **Delete** `_OPENAI_COMPAT_ENDPOINTS` dict
+- [ ] **Delete** `_call_anthropic` function
+- [ ] **Delete** `_call_openai_compat` function
+- [ ] **Delete** `_call_llm` function
+- [ ] **Add** `_RETRY_DELAYS = (60, 120, 240)` constant
+- [ ] **Rewrite** `run_screenshot_agent` as `async def`:
+  - [ ] Update signature: remove `provider` and `model_id` params, add `model: str` (full string); update return type to `tuple[ScreenshotDecision, int, int, float]`
+  - [ ] Call `_load_image(target)` — unchanged
+  - [ ] Call `_build_system_prompt(user_type)` — unchanged
+  - [ ] Build `messages` list in OpenAI multimodal format (system role + user role with text + image_url)
+  - [ ] Implement retry loop over `(*_RETRY_DELAYS, None)`:
+    - [ ] `await acompletion(model=model, messages=messages, max_tokens=1024, response_format={"type": "json_object"})`
+    - [ ] On `RateLimitError`: if `delay is None` raise `ClickException`; else `await asyncio.sleep(delay)`
+    - [ ] Break out of loop on success
+  - [ ] Extract `raw = response.choices[0].message.content or ""`
+  - [ ] Extract `in_tok = response.usage.prompt_tokens`
+  - [ ] Extract `out_tok = response.usage.completion_tokens`
+  - [ ] Call `completion_cost(completion_response=response, model=model)` inside `try/except`, fallback `0.0`
+  - [ ] Try `ScreenshotDecision.model_validate_json(raw)`; on failure construct synthetic decision with `completed=False`, `abandoned=True`, `abandonment_reason="parse failure"`, friction note
+  - [ ] Return `(decision, in_tok, out_tok, cost)`
+
+---
+
+### Phase 3 — `src/ux_swarm/swarm.py` (new file)
 
 - [ ] Create `src/ux_swarm/swarm.py`
-- [ ] Implement `_run_agent` async inner function with per-agent exception catching + `CancelledError` re-raise
-- [ ] Implement `run_screenshot_swarm` using `asyncio.TaskGroup` + `asyncio.Semaphore`
-- [ ] Implement `_aggregate` with completion_rate, margin_of_error, user_breakdown, friction_points, total_cost
-- [ ] Verify `SwarmResult.users` is count of successful agents, not `num_agents`
+- [ ] Add imports: `from __future__ import annotations`, `asyncio`, `math`, `click`, `Callable` from `collections.abc`, `datetime`/`timezone` from `datetime`
+- [ ] Add imports from project: `run_screenshot_agent` from `ux_swarm.agent`; `AgentResult`, `SwarmResult`, `UserType` from `ux_swarm.models`; `distribute_users` from `ux_swarm.personas`
+- [ ] Implement `run_screenshot_swarm(target, task, users, num_agents, model, api_key, max_concurrent, on_agent_done=None) -> SwarmResult`:
+  - [ ] Call `distribute_users(users, num_agents)` to get `assigned`
+  - [ ] Create `semaphore = asyncio.Semaphore(max_concurrent)`
+  - [ ] Declare `results: list[AgentResult] = []` and `completed_count = 0`
+  - [ ] Define `async def _run_agent(idx, user_type)` inner function:
+    - [ ] `async with semaphore:` wrap the `await run_screenshot_agent(...)` call
+    - [ ] Construct `AgentResult` from decision fields + token counts + cost
+    - [ ] `results.append(result)`
+    - [ ] `except asyncio.CancelledError: raise`
+    - [ ] `except Exception: pass`
+    - [ ] `finally:` increment `completed_count`; call `on_agent_done(completed_count, num_agents)` if set
+  - [ ] `async with asyncio.TaskGroup() as tg:` — `tg.create_task(_run_agent(idx, user_type))` for each assigned slot
+  - [ ] Return `_aggregate(results, target, task, model, num_agents)`
+- [ ] Implement `_aggregate(results, target, task, model, num_agents) -> SwarmResult`:
+  - [ ] Raise `ClickException` if `len(results) == 0`
+  - [ ] `completion_rate = sum(1 for r in results if r.completed) / n`
+  - [ ] `moe = 1.96 * math.sqrt(completion_rate * (1 - completion_rate) / n) if n > 1 else 0.0`
+  - [ ] Build `user_breakdown`: group by `r.user_type`, compute per-label completion rate
+  - [ ] Flatten `friction_points` from all results
+  - [ ] Sum `total_cost`
+  - [ ] Strip provider prefix from `model` for display: `model.split("/", 1)[-1]`
+  - [ ] Construct and return `SwarmResult` with `timestamp=datetime.now(timezone.utc).isoformat()`, `mode="screenshot"`, all computed fields, `individual_results=results`
 
-### Phase 4 — `main.py` wiring
+---
 
-- [ ] Add `import asyncio`, `import os`, `from rich.live import Live`, `from rich.text import Text` to imports
-- [ ] Add `from ux_swarm.personas import load_users` and `from ux_swarm.swarm import run_screenshot_swarm`
-- [ ] Remove `run_screenshot_agent` import and old `from ux_swarm.models import AgentResult`
-- [ ] Add `_PROVIDER_ENV_VARS` dict and `_inject_api_key(provider, api_key)` helper
-- [ ] Update `run` command body: inject key, load users, set up Live, call swarm, save SwarmResult
-- [ ] Replace `_print_result` with `_print_swarm_result` (aggregate display)
-- [ ] Update `RUN_DEFAULTS` to confirm `default_users: 20`
-- [ ] Add `users` command with `--config` flag
-- [ ] Update `main.py` imports: remove `run_screenshot_agent`, `AgentResult`, add `asyncio`, `os`, `Live`, `Text`
+### Phase 4 — `src/ux_swarm/main.py` (wiring)
+
+**Imports**
+
+- [ ] Add `import asyncio` and `import os`
+- [ ] Add `from rich.live import Live` and `from rich.text import Text`
+- [ ] Add `from ux_swarm.personas import load_users`
+- [ ] Add `from ux_swarm.swarm import run_screenshot_swarm`
+- [ ] Remove `from ux_swarm.agent import run_screenshot_agent`
+- [ ] Remove `AgentResult` from the `ux_swarm.models` import (keep `SwarmResult`, `UserType`, `ScreenshotDecision`)
+
+**Module-level additions**
+
+- [ ] Add `_PROVIDER_ENV_VARS = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY"}`
+- [ ] Add `def _inject_api_key(provider, api_key)` — sets `os.environ[env_var] = api_key`
+
+**`run` command**
+
+- [ ] Extract `provider = config.get("provider", "")` from config
+- [ ] Call `_inject_api_key(provider, api_key)` before the swarm
+- [ ] Add `num_agents = users or RUN_DEFAULTS["default_users"]`
+- [ ] Add `max_concurrent = RUN_DEFAULTS["max_concurrent_screenshot"]`
+- [ ] Call `user_types = load_users()`
+- [ ] Replace `_console.status(...)` with `with Live(console=_console, auto_refresh=False) as live:`
+- [ ] Define `on_done(done, total)` callback inside the `Live` block — calls `live.update(Text(...), refresh=True)`
+- [ ] Replace `run_screenshot_agent(...)` call with `asyncio.run(run_screenshot_swarm(..., on_agent_done=on_done))`
+- [ ] Update `except` block: re-raise `click.ClickException` directly, wrap others
+- [ ] Remove old `AgentResult(...)` construction block
+- [ ] Remove hardcoded `UserType(label="Default User", ...)` block
+- [ ] Update report filename: use `Path(target).stem` instead of hardcoded `"screenshot"`
+- [ ] Update report write: `result.model_dump_json(indent=2)` (SwarmResult, not AgentResult)
+- [ ] Wrap report write in `try/except OSError` — print warning, don't raise
+- [ ] Replace `_print_result(...)` call with `_print_swarm_result(target, task, result)`
+
+**`_print_swarm_result` function (new)**
+
+- [ ] Remove old `_print_result` function entirely
+- [ ] Add `def _print_swarm_result(target, task, result):`
+  - [ ] Compute `rate_pct` and `moe_pct` as percent strings
+  - [ ] Set `rate_style` based on thresholds: `>=0.8` → `"green"`, `>=0.5` → `"yellow"`, else `"red"`
+  - [ ] Print opening rule, blank line
+  - [ ] Print `filename — "task"` header
+  - [ ] Print rate + moe + agent count line with color
+  - [ ] Print user breakdown section only if `len(result.user_breakdown) > 1`
+  - [ ] Print friction section: `Counter(result.friction_points).most_common(5)`, only if any exist
+  - [ ] Print dim footer: model name + cost (only if cost > 0)
+  - [ ] Print closing rule
+
+**`users` command (new)**
+
+- [ ] Add `@cli.command()` with `--config` flag option (`write_config`)
+- [ ] If `write_config` and `USERS_JSON` exists: print "already exists" message
+- [ ] If `write_config` and `USERS_JSON` absent: call `write_default_users()`, print path
+- [ ] Else: call `load_users()`, print each user type with weight share and truncated description (120 chars)
+
+**`RUN_DEFAULTS`**
+
+- [ ] Confirm `"default_users": 20` is present (already in current code — verify, don't add duplicate)
+
+---
 
 ### Phase 5 — Validate
 
-- [ ] Single-user smoke test
-- [ ] Five-user test with progress counter check
-- [ ] SwarmResult JSON structure check
-- [ ] Twenty-user full run
-- [ ] `swarm users` command
-- [ ] `swarm users --config` command
-- [ ] Two-type custom users.json test
-- [ ] Error path tests (bad path, URL, no config, --verbose)
+**Single-agent baseline**
+
+- [ ] Run `swarm screenshot.png "find the login button" --users 1` — confirm progress shows `1 / 1`, final summary displays correctly
+- [ ] Confirm `.swarm/reports/` contains one `{timestamp}_{stem}.json` file
+- [ ] Confirm report JSON parses as valid `SwarmResult` with `mode="screenshot"`, `users=1`, `individual_results` has 1 entry
+
+**Multi-agent run**
+
+- [ ] Run with `--users 5` — confirm progress counter increments 5 times during run
+- [ ] Confirm `SwarmResult.completion_rate` is `completed_count / 5` (check individual_results manually)
+- [ ] Confirm `SwarmResult.users` reflects successful agents, not `num_agents` (kill network mid-run to test)
+
+**Display**
+
+- [ ] Confirm rate is green at ≥80%, yellow at ≥50%, red below 50% (test with a trivial/impossible task)
+- [ ] Confirm user breakdown section is hidden when only one user type is active
+- [ ] Confirm friction section is omitted entirely when `friction_points` is empty
+- [ ] Confirm cost footer is omitted when `total_cost == 0.0`
+
+**`users` command**
+
+- [ ] Run `swarm users` — confirms default user type printed with weight and truncated description
+- [ ] Run `swarm users --config` — creates `.swarm/users.json`, prints path
+- [ ] Run `swarm users --config` again — prints "already exists", does not overwrite
+- [ ] Edit `.swarm/users.json` to have two types, run with `--users 10` — confirm user breakdown shows both labels with correct distribution
+
+**Error paths**
+
+- [ ] Bad image path → `ClickException` with clear message, no traceback
+- [ ] URL as target → `ClickException` with browser-mode redirect message
+- [ ] No config → `ClickException` pointing to `swarm config`
+- [ ] Corrupt `.swarm/users.json` (invalid JSON) → `ClickException` naming the file
+- [ ] `--verbose` flag → full traceback on any failure
