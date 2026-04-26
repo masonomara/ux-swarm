@@ -27,6 +27,7 @@ ASCII_ART = ("  __  ___  __    _____      _____   ___  __  ___\n"
 
 
 def _print_header() -> None:
+    """Print the ASCII banner, version, description, and current config status."""
     _console.print("\n" + ASCII_ART, highlight=False)
     _console.print(f"\nux-swarm - v{__version__}\n", highlight=False)
     _console.print(
@@ -61,6 +62,7 @@ def _print_header() -> None:
 
 
 def _print_home() -> None:
+    """Print the home screen: header plus usage and command hints."""
     _print_header()
     _console.print("Usage:\n")
     _console.print("  swarm <target> <task>\n", highlight=False)
@@ -110,6 +112,7 @@ RUN_DEFAULTS: dict[str, int | float] = {
 
 # TODO: find a permanent home for this once a storage/reports layer exists
 def ensure_swarm_structure() -> None:
+    """Create the .swarm/reports/ directory tree if it doesn't already exist."""
     (LOCAL_DIR / "reports").mkdir(parents=True, exist_ok=True)
 
 
@@ -119,6 +122,7 @@ def _print_result(
     model_id: str,
     result: AgentResult,
 ) -> None:
+    """Render a single-agent result to the terminal between rule dividers."""
     filename = Path(target).name
 
     _console.print()

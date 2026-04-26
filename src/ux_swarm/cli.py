@@ -9,6 +9,7 @@ class SmartGroup(click.Group):
     _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
     def parse_args(self, ctx, args):
+        """Intercept args before Click sees them; prepend 'run' if the first arg looks like a URL or image path."""
         if args and not args[0].startswith(
                 "-") and args[0] not in self.commands:
             reconstructed = self._try_reconstruct(args)
@@ -17,6 +18,7 @@ class SmartGroup(click.Group):
         return super().parse_args(ctx, args)
 
     def _try_reconstruct(self, args: list[str]) -> list[str] | None:
+        """Return ['run', target, task, ...flags] if args start with a URL or image path, otherwise None."""
         # URL: already a single token, no reconstruction needed
         if args[0].startswith(("http://", "https://")):
             return ["run"] + args

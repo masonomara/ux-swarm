@@ -15,10 +15,12 @@ _MIME_TYPES = {
 
 
 def _media_type(path: Path) -> str:
+    """Return the MIME type for a path, defaulting to image/png for unrecognized extensions."""
     return _MIME_TYPES.get(path.suffix.lower(), "image/png")
 
 
 def _load_image(target: str) -> tuple[str, str]:
+    """Return (base64_data, mime_type) for an image file; raises FileNotFoundError if missing."""
     path = Path(target)
     if not path.exists():
         raise FileNotFoundError(f"Image not found: {target}")
@@ -28,6 +30,7 @@ def _load_image(target: str) -> tuple[str, str]:
 
 
 def _build_system_prompt(user_type: UserType) -> str:
+    """Build the system prompt for a screenshot agent: persona, UX instruction, and JSON schema."""
     schema = json.dumps(ScreenshotDecision.model_json_schema(), indent=2)
     return (
         f"You are a synthetic user in a UX test.\n\n"
@@ -56,6 +59,7 @@ def _call_anthropic(
     media_type: str,
     user_prompt: str,
 ) -> tuple[str, int, int]:
+    """POST a vision request to the Anthropic messages API. Returns (response_text, input_tokens, output_tokens)."""
     body = json.dumps({
         "model":
         model_id,
@@ -110,6 +114,7 @@ def _call_openai_compat(
     media_type: str,
     user_prompt: str,
 ) -> tuple[str, int, int]:
+    """POST a vision request to an OpenAI-compatible endpoint. Returns (response_text, input_tokens, output_tokens)."""
     body = json.dumps({
         "model":
         model_id,
@@ -168,6 +173,7 @@ def _call_llm(
     media_type: str,
     user_prompt: str,
 ) -> tuple[str, int, int]:
+    """Route a vision LLM call to the correct provider and return (response_text, input_tokens, output_tokens)."""
     if provider == "anthropic":
         return _call_anthropic(model_id, api_key, system, image_data,
                                media_type, user_prompt)
@@ -193,6 +199,7 @@ def run_screenshot_agent(
     model_id: str,
     api_key: str,
 ) -> tuple[ScreenshotDecision, int, int]:
+    """Public entry point for a single screenshot agent. Returns (ScreenshotDecision, input_tokens, output_tokens)."""
     image_data, media_type = _load_image(target)
     system = _build_system_prompt(user_type)
     user_prompt = f"Task: {task}"

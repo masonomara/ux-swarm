@@ -92,6 +92,7 @@ def fetch_provider_models(provider_key: str, api_key: str) -> list[str]:
 
 
 def load_config() -> dict:
+    """Load and merge global and local config files. Local keys override global keys."""
     resolved: dict = {}
     for path in (GLOBAL_CONFIG, LOCAL_CONFIG):
         if path.exists():
@@ -105,6 +106,7 @@ def load_config() -> dict:
 
 
 def save_config(data: dict, *, local: bool = True) -> Path:
+    """Write config to the local config file; pass local=False to write to the global config instead."""
     target = LOCAL_CONFIG if local else GLOBAL_CONFIG
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(data, indent=2) + "\n")
@@ -112,6 +114,7 @@ def save_config(data: dict, *, local: bool = True) -> Path:
 
 
 def _wizard_step_provider(state: dict) -> None:
+    """Wizard step: prompt the user to select an LLM provider."""
     names = [p["name"] for p in PROVIDERS]
     default = next(
         (i for i, p in enumerate(PROVIDERS)
@@ -127,6 +130,7 @@ def _wizard_step_provider(state: dict) -> None:
 
 
 def _wizard_step_api_key(state: dict) -> None:
+    """Wizard step: prompt for and validate an API key against the selected provider."""
     error_lines = 0
     while True:
         api_key = click.prompt("\033[1mAPI Key\033[0m",
@@ -161,6 +165,7 @@ def _wizard_step_api_key(state: dict) -> None:
 
 
 def _wizard_step_model(state: dict) -> None:
+    """Wizard step: prompt the user to select a model from the provider's available list."""
     options = state["model_options"]
     default = next(
         (i for i, m in enumerate(options) if m == state.get("model")),
@@ -172,6 +177,7 @@ def _wizard_step_model(state: dict) -> None:
 
 
 def playwright_state() -> tuple[bool, bool]:
+    """Return (playwright_installed, chromium_installed) as a pair of booleans."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -184,6 +190,7 @@ def playwright_state() -> tuple[bool, bool]:
 
 
 def _wizard_step_playwright(state: dict) -> None:
+    """Wizard step: offer to install Playwright and Chromium if not already present."""
     playwright_ok, chromium_ok = playwright_state()
 
     if playwright_ok and chromium_ok:
@@ -218,6 +225,7 @@ def _wizard_step_playwright(state: dict) -> None:
 
 
 def _install_playwright() -> None:
+    """Run pip install playwright as a subprocess, printing any errors."""
     with console.status("Installing Playwright…"):
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", "playwright"],
@@ -231,6 +239,7 @@ def _install_playwright() -> None:
 
 
 def _install_chromium() -> None:
+    """Run playwright install chromium as a subprocess, printing any errors."""
     console.print("")
     with console.status("Installing Chromium…"):
         result = subprocess.run(
@@ -246,6 +255,7 @@ def _install_chromium() -> None:
 
 
 def run_config_wizard() -> None:
+    """Run the interactive setup wizard, collecting provider, API key, model, and Playwright config."""
     state: dict = {}
     steps = [
         _wizard_step_provider,
