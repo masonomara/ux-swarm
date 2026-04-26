@@ -401,19 +401,55 @@ dependencies = [
 
 ### Phase 6 — Smoke Test
 
-- [ ] `swarm` with no config → "Run setup?" appears
-- [ ] "No" at "Run setup?" → exits cleanly
-- [ ] `swarm config` → wizard starts directly
-- [ ] Provider: arrow-key navigation works, Enter commits
-- [ ] API key: Enter with env var set → uses env var
-- [ ] API key: bad key → red error, re-prompts
-- [ ] API key: network failure → prints error, exits 1
-- [ ] Model: Escape goes back to API key step; previously chosen provider is default
-- [ ] Playwright already installed → confirmation shown, no install prompt
+- [x] `swarm` with no config → "Run setup?" appears
+- [x] "No" at "Run setup?" → exits cleanly
+- [x] `swarm config` → wizard starts directly
+- [x] Provider: arrow-key navigation works, Enter commits
+- [x] API key: Enter with env var set → uses env var
+- [x] API key: bad key → red error, re-prompts
+- [x] API key: network failure → prints error, exits 1
+- [x] Model: Escape goes back to API key step; previously chosen provider is default
+- [x] Playwright already installed → confirmation shown, no install prompt
 - [ ] Playwright missing + "Yes" → install runs; failure → stderr shown, not a traceback
 - [ ] Playwright missing + "No, skip" → wizard continues to confirmation
-- [ ] Confirmation: values shown correctly, key is masked
+- [x] Confirmation: values shown correctly, key is masked
 - [ ] "Go back" at confirmation → returns to Playwright step
-- [ ] "Yes, save" → `.swarm/config.json` written with `provider`, `api_key`, `model`
-- [ ] `swarm` after config exists → no wizard prompt
-- [ ] Ctrl-C in any arrow-key menu → "interrupted", exit 130
+- [x] "Yes, save" → `.swarm/config.json` written with `provider`, `api_key`, `model`
+- [x] `swarm` after config exists → no wizard prompt
+- [x] Ctrl-C in any arrow-key menu → "interrupted", exit 130
+
+
+### Phase 7 - UI Changes
+
+- On run setup, i see the whole usage stuff:
+
+```bash
+(ux-swarm) masonomara@Masons-MacBook-Pro ux-swarm % swarm
+Usage: swarm [OPTIONS] COMMAND [ARGS]...
+
+  Synthetic UX testing
+
+Options:
+  --version  Show the version and exit.
+  --help     Show this message and exit.
+
+Commands:
+  config  Run the setup wizard: provider, API key,...
+Run setup?
+
+  › Yes
+    No
+```
+
+
+I shoudlnt see that, I shoudl jsut see soemthing like this:
+
+```bash
+(ux-swarm) masonomara@Masons-MacBook-Pro ux-swarm % swarm
+
+Need to run config wizard.
+Ok to proceed? (y)
+```
+
+- take out the environment variable option for now, dont need it
+- in save config, when chromium is isntalled, it shoudl take you to the api key step

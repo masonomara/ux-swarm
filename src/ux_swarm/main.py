@@ -19,10 +19,11 @@ except PackageNotFoundError:
 @click.pass_context
 def cli(ctx):
     if ctx.invoked_subcommand is None:
-        click.echo(ctx.get_help())
         if not (LOCAL_CONFIG.exists() or GLOBAL_CONFIG.exists()):
-            if select("Run setup?", ["Yes", "No"]) == "Yes":
+            if select("No config found — run setup?", ["Yes", "No"]) == "Yes":
                 run_config_wizard()
+        else:
+            click.echo(ctx.get_help())
 
 
 @cli.command()

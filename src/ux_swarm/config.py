@@ -1,6 +1,6 @@
 import json
-import os
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -130,12 +130,9 @@ def save_config(data: dict, *, local: bool = True) -> Path:
 
 
 def check_chromium_installed() -> bool:
-    try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            return Path(p.chromium.executable_path).exists()
-    except Exception:
-        return False
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        return Path(p.chromium.executable_path).exists()
 
 
 def _wizard_step_provider(state: dict) -> None:
@@ -153,30 +150,18 @@ def _wizard_step_provider(state: dict) -> None:
 
 
 def _wizard_step_api_key(state: dict) -> None:
-    env_var = state["provider_env"]
-    env_val = os.environ.get(env_var, "")
-
-    if env_val:
-        console.print(
-            f"[dim]Press Enter to use ${env_var} from environment[/]")
-
     while True:
-        raw = click.prompt(f"API Key ({env_var})",
-                           default="",
-                           show_default=False).strip()
-        api_key = raw or env_val
+        api_key = click.prompt("API Key", default="",
+                               show_default=False).strip()
 
         if not api_key:
-            console.print(
-                "[red]No API key found. Enter a key or set the env var.[/]")
+            console.print("[red]API key is required.[/]")
             continue
 
         try:
             model_options = fetch_provider_models(state["provider_key"],
                                                   api_key)
             state["api_key"] = api_key
-            state["api_key_source"] = "env" if (not raw
-                                                and env_val) else "entered"
             state["model_options"] = model_options
             return
         except ProviderAuthError:
@@ -215,14 +200,13 @@ def _wizard_step_playwright(state: dict) -> None:
         state["playwright_ok"] = False
         return
 
-    _install_chromium()
-    state["playwright_ok"] = True
+    state["playwright_ok"] = _install_chromium()
 
 
-def _install_chromium() -> None:
+def _install_chromium() -> bool:
     with console.status("Installing Chromium…"):
         result = subprocess.run(
-            ["playwright", "install", "chromium"],
+            [sys.executable, "-m", "playwright", "install", "chromium"],
             capture_output=True,
             text=True,
         )
@@ -231,15 +215,14 @@ def _install_chromium() -> None:
         if result.stderr.strip():
             console.print(f"[dim]{result.stderr.strip()}[/]")
         console.print("[dim]Run: playwright install chromium[/]")
-    else:
-        console.print("[green]✓[/] Chromium installed")
+        return False
+    console.print("[green]✓[/] Chromium installed")
+    return True
 
 
 def _wizard_step_confirm(state: dict) -> None:
     key = state["api_key"]
     masked = key[:8] + "…" + key[-4:] if len(key) > 12 else "•" * len(key)
-    source_note = " [dim](from environment)[/]" if state.get(
-        "api_key_source") == "env" else ""
     chromium_status = "[green]✓ installed[/]" if state.get(
         "playwright_ok") else "[yellow]not installed[/]"
 
@@ -248,7 +231,7 @@ def _wizard_step_confirm(state: dict) -> None:
     table.add_column()
     table.add_row("Provider", state["provider_name"])
     table.add_row("Model", state["model"])
-    table.add_row("API Key", f"{masked}{source_note}")
+    table.add_row("API Key", masked)
     table.add_row("Chromium", chromium_status)
 
     console.print()
@@ -276,6 +259,8 @@ def run_config_wizard() -> None:
             i += 1
         except GoBack:
             i = max(0, i - 1)
+            if i == 3 and state.get("playwright_ok"):
+                i = max(0, i - 1)
 
     saved_path = save_config({
         "provider": state["provider_key"],
