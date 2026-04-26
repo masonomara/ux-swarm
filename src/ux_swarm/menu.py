@@ -19,23 +19,25 @@ def navigate(key: str, selected_index: int, max_index: int) -> int:
     return selected_index
 
 
-def select(label: str, options: list[str], default_index: int = 0) -> str:
+def select(label: str,
+           options: list[str],
+           default_index: int = 0,
+           echo: bool = True) -> str:
     """Display an arrow-key menu, redrawing in-place. Collapses to a single line on commit."""
     selected_index = default_index
 
     def _draw() -> int:
         lines = [
             f"[bold]{label}[/]",
-            "",
             *[
-                f"  {'[bold cyan]›[/]' if i == selected_index else ' '} {opt}"
+                f"{'[green]> [/]' if i == selected_index else '  '} {'[green]' + opt + '[/]' if i == selected_index else opt}"
                 for i, opt in enumerate(options)
             ],
             "",
-            "[dim]↑↓ navigate  Enter select[/]",
+            "[dim]Use arrow keys. Return to submit[/]",
         ]
         for line in lines:
-            console.print(line)
+            console.print(line, highlight=False)
         return len(lines)
 
     lines_drawn = _draw()
@@ -46,13 +48,16 @@ def select(label: str, options: list[str], default_index: int = 0) -> str:
         if key in ("\r", "\n"):
             sys.stdout.write(f"\x1b[{lines_drawn}A\x1b[J")
             sys.stdout.flush()
-            console.print(f"[bold]{label}:[/] {options[selected_index]}\n")
+            if echo:
+                console.print(
+                    f"[bold]{label}[/]: [dim]{options[selected_index]}[/]",
+                    highlight=False)
             return options[selected_index]
 
         if key == "\x1b":
             sys.stdout.write(f"\x1b[{lines_drawn}A\x1b[J")
             sys.stdout.flush()
-            console.print(f"[bold]{label}:[/] [dim]← back[/]\n")
+            console.print(f"{label}: [dim]← back[/]\n")
             raise GoBack
 
         if key == "\x03":

@@ -22,7 +22,7 @@ ASCII_ART = ("  __  ___  __    _____      _____   ___  __  ___\n"
              "\\____/_/|_|   /___/ |__/|__/_/ |_/_/|_/_/  /_/")
 
 
-def _print_home() -> None:
+def _print_header() -> None:
     _console.print("\n" + ASCII_ART, highlight=False)
 
     _console.print(f"\nux-swarm - v{__version__}\n", highlight=False)
@@ -42,7 +42,7 @@ def _print_home() -> None:
     provider_key = config.get("provider")
     provider_name = (next(
         (p["name"] for p in PROVIDERS if p["key"] == provider_key),
-        provider_key) if provider_key else "[dim]Not configured[/]")
+        provider_key) if provider_key else "Needs configuration")
 
     raw_model = config.get("model", "")
     model_display = raw_model.split("/",
@@ -53,17 +53,22 @@ def _print_home() -> None:
     provider_dot = "[green]•[/]" if provider_key else "[red]•[/]"
     model_dot = "[green]•[/]" if model_display else "[red]•[/]"
 
-    _console.print(f"{pw_dot} Playwright: {playwright_label}", highlight=False)
     _console.print(f"{provider_dot} LLM Provider: {provider_name}",
                    highlight=False)
-    _console.print(f"{model_dot} Model: {model_label}\n", highlight=False)
+    _console.print(f"{model_dot} Model: {model_label}", highlight=False)
+    _console.print(f"{pw_dot} Playwright: {playwright_label}\n",
+                   highlight=False)
 
     _console.print("---\n")
+
+
+def _print_home() -> None:
+    _print_header()
+
     _console.print("Usage:\n")
     _console.print("  swarm <target> <task>\n", highlight=False)
     _console.print("Commands:\n")
-    _console.print(
-        "  config   Run setup wizard")
+    _console.print("  config   Run setup wizard")
     _console.print("  help     View all commands")
     _console.print("\n---\n")
 
@@ -73,16 +78,20 @@ def _print_home() -> None:
 @click.pass_context
 def cli(ctx):
     if ctx.invoked_subcommand is None:
-        _print_home()
         if not (LOCAL_CONFIG.exists() or GLOBAL_CONFIG.exists()):
-            if select("Get started?", ["Yes", "No"]) == "Yes":
+            _print_header()
+            if select("Run setup wizard?", ["Yes", "No"], echo=False) == "Yes":
                 run_config_wizard()
+        else:
+            _print_home()
 
 
 @cli.command()
 def config():
     """Run the setup wizard: provider, API key, model, Chromium."""
-    run_config_wizard()
+    _print_header()
+    if select("Run setup wizard?", ["Yes", "No"], echo=False) == "Yes":
+        run_config_wizard()
 
 
 @cli.command()

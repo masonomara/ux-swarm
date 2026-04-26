@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -7,7 +8,6 @@ from pathlib import Path
 
 import click
 from rich.console import Console
-from rich.table import Table
 
 from ux_swarm.menu import GoBack, select
 
@@ -142,7 +142,9 @@ def _wizard_step_provider(state: dict) -> None:
          if p["key"] == state.get("provider_key")),
         0,
     )
-    chosen_name = select("LLM Provider", names, default_index=default)
+    chosen_name = select("Which LLM provider would you like to use?",
+                         names,
+                         default_index=default)
     provider = next(p for p in PROVIDERS if p["name"] == chosen_name)
     state["provider_key"] = provider["key"]
     state["provider_env"] = provider["env"]
@@ -150,12 +152,20 @@ def _wizard_step_provider(state: dict) -> None:
 
 
 def _wizard_step_api_key(state: dict) -> None:
+    error_lines = 0
     while True:
-        api_key = click.prompt("API Key", default="",
+        api_key = click.prompt("\033[1mAPI Key\033[0m",
+                               default="",
                                show_default=False).strip()
+        cols = shutil.get_terminal_size().columns
+        wrapped = max(1, (len("API Key: ") + len(api_key) + cols - 1) // cols)
+        sys.stdout.write(f"\x1b[{wrapped + error_lines}A\x1b[J")
+        sys.stdout.flush()
+        error_lines = 0
 
         if not api_key:
             console.print("[red]API key is required.[/]")
+            error_lines = 1
             continue
 
         try:
@@ -166,6 +176,7 @@ def _wizard_step_api_key(state: dict) -> None:
             return
         except ProviderAuthError:
             console.print("[red]Invalid API key, please try again.[/]")
+            error_lines = 1
         except Exception as exc:
             console.print(
                 f"[red]Could not reach {state['provider_name']} API.[/]")
@@ -180,30 +191,70 @@ def _wizard_step_model(state: dict) -> None:
         (i for i, m in enumerate(options) if m == state.get("model")),
         0,
     )
-    state["model"] = select("Model", options, default_index=default)
+    state["model"] = select("Which model would you like to use?",
+                            options,
+                            default_index=default)
+
+
+def _playwright_state() -> tuple[bool, bool]:
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return False, False
+    try:
+        with sync_playwright() as p:
+            return True, Path(p.chromium.executable_path).exists()
+    except Exception:
+        return True, False
 
 
 def _wizard_step_playwright(state: dict) -> None:
-    console.print("\n[bold]Playwright[/]")
-    console.print("─" * 40)
+    playwright_ok, chromium_ok = _playwright_state()
 
-    if check_chromium_installed():
-        console.print("  [green]•[/] Chromium installed")
+    if playwright_ok and chromium_ok:
+        console.print(
+            "[bold]Would you like to install Chromium for Playwright?[/] [dim]Installed[/]"
+        )
         state["playwright_ok"] = True
         return
 
-    console.print(
-        "  [yellow]•[/] Chromium not found — required for browser mode\n")
-    choice = select("Install Chromium now?", ["Yes", "No, skip for now"])
+    if not playwright_ok:
+        choice = select("Would you like to install Playwright?", ["Yes", "No"],
+                        echo=False)
+        if choice == "No":
+            state["playwright_ok"] = False
+            return
+        _install_playwright()
+        _, chromium_ok = _playwright_state()
 
-    if choice.startswith("No"):
-        state["playwright_ok"] = False
-        return
+    if not chromium_ok:
+        choice = select("Would you like to install Chromium for Playwright?",
+                        ["Yes", "No"],
+                        echo=False)
+        if choice == "No":
+            state["playwright_ok"] = False
+            return
+        _install_chromium()
+        console.print("[bold]Would you like to install Chromium for Playwright?:[/] [dim]Installed[/]")
 
-    state["playwright_ok"] = _install_chromium()
+    state["playwright_ok"] = True
 
 
-def _install_chromium() -> bool:
+def _install_playwright() -> None:
+    with console.status("Installing Playwright…"):
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "playwright"],
+            capture_output=True,
+            text=True,
+        )
+    if result.returncode != 0:
+        console.print("[red]Playwright install failed.[/]")
+        if result.stderr.strip():
+            console.print(f"[dim]{result.stderr.strip()}[/]")
+
+
+def _install_chromium() -> None:
+    console.print("")
     with console.status("Installing Chromium…"):
         result = subprocess.run(
             [sys.executable, "-m", "playwright", "install", "chromium"],
@@ -215,32 +266,6 @@ def _install_chromium() -> bool:
         if result.stderr.strip():
             console.print(f"[dim]{result.stderr.strip()}[/]")
         console.print("[dim]Run: playwright install chromium[/]")
-        return False
-    console.print("[green]✓[/] Chromium installed")
-    return True
-
-
-def _wizard_step_confirm(state: dict) -> None:
-    key = state["api_key"]
-    masked = key[:8] + "…" + key[-4:] if len(key) > 12 else "•" * len(key)
-    chromium_status = "[green]✓ installed[/]" if state.get(
-        "playwright_ok") else "[yellow]not installed[/]"
-
-    table = Table(show_header=False, box=None, padding=(0, 2))
-    table.add_column(style="dim")
-    table.add_column()
-    table.add_row("Provider", state["provider_name"])
-    table.add_row("Model", state["model"])
-    table.add_row("API Key", masked)
-    table.add_row("Chromium", chromium_status)
-
-    console.print()
-    console.print(table)
-    console.print()
-
-    choice = select("Save config?", ["Yes, save", "Go back"])
-    if choice == "Go back":
-        raise GoBack
 
 
 def run_config_wizard() -> None:
@@ -250,7 +275,6 @@ def run_config_wizard() -> None:
         _wizard_step_api_key,
         _wizard_step_model,
         _wizard_step_playwright,
-        _wizard_step_confirm,
     ]
     i = 0
     while i < len(steps):
@@ -259,8 +283,6 @@ def run_config_wizard() -> None:
             i += 1
         except GoBack:
             i = max(0, i - 1)
-            if i == 3 and state.get("playwright_ok"):
-                i = max(0, i - 1)
 
     saved_path = save_config({
         "provider": state["provider_key"],
