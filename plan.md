@@ -453,3 +453,203 @@ Ok to proceed? (y)
 
 - take out the environment variable option for now, dont need it
 - in save config, when chromium is isntalled, it shoudl take you to the api key step
+
+---
+
+## Phase 8 — First-Run Home Screen
+
+### Goal
+
+Replace Click's default help output with a designed home screen. Running bare `swarm` — whether or not config exists — shows a single, intentional screen. The setup wizard prompt appears only when no config is found.
+
+### Target Output (no config)
+
+```
+  __  ___  __    _____      _____   ___  __  ___
+ / / / / |/_/___/ __/ | /| / / _ | / _ \/  |/  /
+/ /_/ />  </___/\ \ | |/ |/ / __ |/ , _/ /|_/ /
+\____/_/|_|   /___/ |__/|__/_/ |_/_/|_/_/  /_/
+
+ux-swarm v0.1.0 — genesis
+
+Execute automated user testing by releasing 100 AI bots at a user
+interface or live website to observe how they execute tasks.
+
+• Playwright:    Not installed
+• LLM Provider:  Not configured
+• Model:         Not configured
+
+────────────────────────────────────────────────
+
+Usage:
+
+  swarm <target> <task>
+
+Commands:
+
+  config    Run the setup wizard: provider, API key, model, Chromium
+  --help    View all commands
+
+────────────────────────────────────────────────
+
+Begin Setup Wizard?
+
+  › Yes
+    No
+```
+
+### Target Output (config exists)
+
+Same screen, but status reflects saved config and no wizard prompt at the bottom:
+
+```
+• Playwright:    Enabled
+• LLM Provider:  Anthropic
+• Model:         claude-opus-4-7
+```
+
+---
+
+### Implementation
+
+#### 1. Add `_print_home()` to `main.py`
+
+This function owns the entire home screen. It reads config and Playwright state, then renders everything with Rich.
+
+```python
+TAGLINES: dict[str, str] = {
+    "0.1.0": "genesis",
+}
+
+def _print_home() -> None:
+    from rich.console import Console
+    from ux_swarm.config import PROVIDERS, check_chromium_installed, load_config
+
+    console = Console()
+
+    # ASCII art — printed as plain text to preserve exact spacing
+    console.print(
+        "\n"
+        "  __  ___  __    _____      _____   ___  __  ___\n"
+        " / / / / |/_/___/ __/ | /| / / _ | / _ \\/  |/  /\n"
+        "/ /_/ />  </___/\\ \\ | |/ |/ / __ |/ , _/ /|_/ /\n"
+        "\\____/_/|_|   /___/ |__/|__/_/ |_/_/|_/_/  /_/",
+        highlight=False,
+    )
+
+    # Version line with optional tagline
+    tagline = TAGLINES.get(__version__)
+    version_line = f"v{__version__} — {tagline}" if tagline else f"v{__version__}"
+    console.print(f"\n[bold]ux-swarm[/] {version_line}\n")
+
+    # Description
+    console.print(
+        "Execute automated user testing by releasing 100 AI bots at a user\n"
+        "interface or live website to observe how they execute tasks.\n"
+    )
+
+    # Status — read live from config + Playwright check
+    config = load_config()
+
+    try:
+        playwright_ok = check_chromium_installed()
+    except Exception:
+        playwright_ok = False
+    playwright_label = "[green]Enabled[/]" if playwright_ok else "[yellow]Not installed[/]"
+
+    provider_key = config.get("provider")
+    provider_name = (
+        next((p["name"] for p in PROVIDERS if p["key"] == provider_key), provider_key)
+        if provider_key else "[dim]Not configured[/]"
+    )
+
+    raw_model = config.get("model", "")
+    model_display = raw_model.split("/", 1)[-1] if "/" in raw_model else raw_model
+    model_label = model_display if model_display else "[dim]Not configured[/]"
+
+    console.print(f"• Playwright:    {playwright_label}")
+    console.print(f"• LLM Provider:  {provider_name}")
+    console.print(f"• Model:         {model_label}\n")
+
+    # Divider + usage
+    console.print("[dim]" + "─" * 48 + "[/]\n")
+    console.print("[bold]Usage:[/]\n")
+    console.print("  [bold]swarm[/] [dim]<target> <task>[/]\n")
+    console.print("[bold]Commands:[/]\n")
+    console.print("  [bold]config[/]    Run the setup wizard: provider, API key, model, Chromium")
+    console.print("  [bold]--help[/]    View all commands")
+    console.print("\n[dim]" + "─" * 48 + "[/]\n")
+```
+
+Key decisions:
+- ASCII art uses `highlight=False` so Rich doesn't misinterpret the slashes and brackets as markup.
+- `TAGLINES` dict maps version string → tagline. Add an entry per release; missing versions get no tagline.
+- `check_chromium_installed()` is wrapped in `try/except` because it imports `playwright.sync_api` — if playwright isn't installed as a package at all, it raises `ImportError`. The screen should degrade gracefully rather than crash.
+- Model display strips the provider prefix (`anthropic/claude-opus-4-7` → `claude-opus-4-7`) since the provider line already makes the prefix redundant.
+
+---
+
+#### 2. Update `cli()` in `main.py`
+
+Replace the current `if/else` block that splits on config existence with `_print_home()` called unconditionally, followed by the setup wizard prompt only when no config exists.
+
+**Current code:**
+
+```python
+def cli(ctx):
+    if ctx.invoked_subcommand is None:
+        if not (LOCAL_CONFIG.exists() or GLOBAL_CONFIG.exists()):
+            if select("No config found — run setup?", ["Yes", "No"]) == "Yes":
+                run_config_wizard()
+        else:
+            click.echo(ctx.get_help())
+```
+
+**New code:**
+
+```python
+def cli(ctx):
+    if ctx.invoked_subcommand is None:
+        _print_home()
+        if not (LOCAL_CONFIG.exists() or GLOBAL_CONFIG.exists()):
+            if select("Begin Setup Wizard?", ["Yes", "No"]) == "Yes":
+                run_config_wizard()
+```
+
+The `ctx.get_help()` call is removed entirely — `_print_home()` replaces it. This also fixes the Phase 7 bug where Click's usage block was printing before the wizard prompt: that was caused by `ctx.get_help()` running in the wrong branch. Now nothing from Click prints automatically.
+
+---
+
+#### 3. No changes to `config.py` or `menu.py`
+
+`_print_home()` calls `load_config()`, `check_chromium_installed()`, and `PROVIDERS` from `config.py`, all of which already exist. `select()` from `menu.py` is already imported in `main.py`. No new dependencies needed.
+
+---
+
+### Todo
+
+#### Phase 8 — First-Run Home Screen
+
+- [ ] Add `TAGLINES` dict to `main.py` with `"0.1.0": "genesis"`
+- [ ] Implement `_print_home()` in `main.py`
+  - [ ] ASCII art block with `highlight=False`
+  - [ ] Version line with tagline lookup
+  - [ ] Description paragraph
+  - [ ] `load_config()` call to read current provider/model
+  - [ ] `check_chromium_installed()` with `try/except` for missing playwright package
+  - [ ] Status bullets: Playwright, LLM Provider, Model
+  - [ ] Strip provider prefix from model string for display
+  - [ ] Divider + Usage section
+  - [ ] Divider before returning
+- [ ] Update `cli()` — call `_print_home()` unconditionally, remove `ctx.get_help()`
+- [ ] Change setup wizard prompt text to `"Begin Setup Wizard?"`
+
+#### Phase 8 — Smoke Tests
+
+- [ ] `swarm` with no config → home screen renders, "Begin Setup Wizard?" appears below
+- [ ] `swarm` with config → home screen renders, no wizard prompt, correct provider/model shown
+- [ ] Playwright installed → `• Playwright: Enabled` in green
+- [ ] Playwright not installed → `• Playwright: Not installed` in yellow
+- [ ] Model stored as `anthropic/claude-opus-4-7` → displays as `claude-opus-4-7`
+- [ ] No config at all → all three status lines show "Not configured"
+- [ ] ASCII art renders without Rich interpreting brackets as markup
