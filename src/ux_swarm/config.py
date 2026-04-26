@@ -98,7 +98,7 @@ def load_config() -> dict:
             try:
                 resolved.update(json.loads(path.read_text()))
             except json.JSONDecodeError as exc:
-                raise click.ClickException(
+                raise ValueError(
                     f"Config file is not valid JSON: {path}\n{exc}\nFix or delete it and run again."
                 ) from exc
     return resolved

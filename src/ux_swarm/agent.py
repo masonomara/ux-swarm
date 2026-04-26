@@ -4,8 +4,6 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-import click
-
 from ux_swarm.models import ScreenshotDecision, UserType
 
 _MIME_TYPES = {
@@ -24,7 +22,7 @@ def _media_type(path: Path) -> str:
 def _load_image(target: str) -> tuple[str, str]:
     path = Path(target)
     if not path.exists():
-        raise click.ClickException(f"Image not found: {target}")
+        raise FileNotFoundError(f"Image not found: {target}")
     media = _media_type(path)
     data = base64.standard_b64encode(path.read_bytes()).decode("ascii")
     return data, media
@@ -156,7 +154,7 @@ def _call_llm(
             _OPENAI_COMPAT_ENDPOINTS[provider],
             model_id, api_key, system, image_data, media_type, user_prompt,
         )
-    raise click.ClickException(f"Unknown provider: {provider!r} — run `swarm config` to reconfigure")
+    raise ValueError(f"Unknown provider: {provider!r} — run `swarm config` to reconfigure")
 
 
 def run_screenshot_agent(
