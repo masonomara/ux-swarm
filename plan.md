@@ -45,11 +45,11 @@ Nothing else changes.
 - [x] Add `_media_type(path: Path) -> str`
 - [x] Add `_load_image(target: str) -> tuple[str, str]` — reads file, raises `ClickException` if missing
 - [x] Add `_build_system_prompt(user_type: UserType) -> str` — persona + heuristics + injected JSON schema
-- [ ] Add `_OPENAI_COMPAT_ENDPOINTS` dict (openai, gemini)
-- [ ] Add `_call_anthropic(model_id, api_key, system, image_data, media_type, user_prompt) -> tuple[str, int, int]` — urllib POST, extract text + tokens
-- [ ] Add `_call_openai_compat(endpoint, model_id, api_key, system, image_data, media_type, user_prompt) -> tuple[str, int, int]` — urllib POST with `response_format: json_object`, extract text + tokens
-- [ ] Add `_call_llm(...)` — routes to `_call_anthropic` or `_call_openai_compat`, raises `ClickException` for unknown provider
-- [ ] Add `run_screenshot_agent(target, task, user_type, provider, model_id, api_key) -> tuple[ScreenshotDecision, int, int]` — orchestrates load → prompt → call → parse
+- [x] Add `_OPENAI_COMPAT_ENDPOINTS` dict (openai, gemini)
+- [x] Add `_call_anthropic(model_id, api_key, system, image_data, media_type, user_prompt) -> tuple[str, int, int]` — urllib POST, extract text + tokens
+- [x] Add `_call_openai_compat(endpoint, model_id, api_key, system, image_data, media_type, user_prompt) -> tuple[str, int, int]` — urllib POST with `response_format: json_object`, extract text + tokens
+- [x] Add `_call_llm(...)` — routes to `_call_anthropic` or `_call_openai_compat`, raises `ClickException` for unknown provider
+- [x] Add `run_screenshot_agent(target, task, user_type, provider, model_id, api_key) -> tuple[ScreenshotDecision, int, int]` — orchestrates load → prompt → call → parse
 
 ### Phase 2 — Fill in `run()` in `src/ux_swarm/main.py`
 
