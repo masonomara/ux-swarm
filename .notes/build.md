@@ -168,3 +168,11 @@ Because of this, I only expect users to have trouble with Chromium, not Playwrig
 DeepSeek doesn't support vision models, so it was removed from the project entirely.
 
 
+## Agent Setup
+
+
+The forst considerationf or the agent was the screenshot swarm, a little simperl to set up. The first considerationf or the screenshot swarm were the image types, LLM API's wont accept a file paths, so we have to encode the image before sending it to the API. `_load_image` reads and encodes the image, then tells the api what format its in with `_MIME_TYPES` + `_media_type`.
+
+The second consideration was how the agent was goign to be instructed. every agent call has two turns, first is the system prompt that is set once and defines the model's role, rules, and output format — standing instructions that frame every response. second turn is the actual request: the task plus the image
+
+I had to keep them seperated because the first is epehreal, applies to every agent, the second is stateful, what the agent is beign asked to do right now.

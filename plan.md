@@ -40,11 +40,11 @@ Nothing else changes.
 
 ### Phase 1 — Create `src/ux_swarm/agent.py`
 
-- [ ] Create file with imports: `base64`, `json`, `urllib.request`, `urllib.error`, `Path` from `pathlib`, `click`, `UserType` and `ScreenshotDecision` from `ux_swarm.models`
-- [ ] Add `_MIME_TYPES` dict mapping extensions to MIME strings
-- [ ] Add `_media_type(path: Path) -> str`
-- [ ] Add `_load_image(target: str) -> tuple[str, str]` — reads file, raises `ClickException` if missing
-- [ ] Add `_build_system_prompt(user_type: UserType) -> str` — persona + heuristics + injected JSON schema
+- [x] Create file with imports: `base64`, `json`, `urllib.request`, `urllib.error`, `Path` from `pathlib`, `click`, `UserType` and `ScreenshotDecision` from `ux_swarm.models`
+- [x] Add `_MIME_TYPES` dict mapping extensions to MIME strings
+- [x] Add `_media_type(path: Path) -> str`
+- [x] Add `_load_image(target: str) -> tuple[str, str]` — reads file, raises `ClickException` if missing
+- [x] Add `_build_system_prompt(user_type: UserType) -> str` — persona + heuristics + injected JSON schema
 - [ ] Add `_OPENAI_COMPAT_ENDPOINTS` dict (openai, gemini)
 - [ ] Add `_call_anthropic(model_id, api_key, system, image_data, media_type, user_prompt) -> tuple[str, int, int]` — urllib POST, extract text + tokens
 - [ ] Add `_call_openai_compat(endpoint, model_id, api_key, system, image_data, media_type, user_prompt) -> tuple[str, int, int]` — urllib POST with `response_format: json_object`, extract text + tokens
@@ -129,7 +129,7 @@ MIME type and base64 data travel together as a pair from this point — never se
 
 ### `_build_system_prompt(user_type: UserType) -> str`
 
-Three sections: persona (archetype name + behavioral description), UX heuristics, JSON schema. Task framing belongs in the user turn, not here.
+Three sections: persona (archetype name + behavioral description), the confusion-as-signal instruction, JSON schema. Task framing belongs in the user turn, not here. The Krug description already encodes the UX heuristics behaviorally — the only thing worth adding explicitly is the meta-instruction to record confusion as friction rather than paper over it.
 
 **System prompt vs user turn:** Every LLM call has two structural layers. The system prompt is set once and defines the model's role, rules, and output format — standing instructions that frame every response. The user turn is the actual request: the task plus the image. The model treats the system prompt as invariant context and the user turn as what it's being asked to do right now.
 
@@ -149,14 +149,7 @@ def _build_system_prompt(user_type: UserType) -> str:
         f"You are a synthetic user in a UX test.\n\n"
         f"You are playing the role of: {user_type.label}\n"
         f"{user_type.description}\n\n"
-        "Apply these UX heuristics when evaluating the interface:\n"
-        "1. Good UI does not make users think\n"
-        "2. Visual hierarchy should guide the eye to the next action\n"
-        "3. Interactive elements should look interactive\n"
-        "4. Users scan — they do not read\n"
-        "5. The most important action should be the most prominent\n"
-        "6. Users need to know where they are in a flow\n"
-        "7. If you feel confused or uncertain, that confusion is the finding\n\n"
+        "Important: if you feel confused or uncertain about what to do, that confusion is the finding — record it in friction_observed.\n\n"
         "Return a JSON object matching this schema exactly:\n"
         f"{schema}\n\n"
         "Return ONLY valid JSON. No markdown fences, no explanation, no preamble."
