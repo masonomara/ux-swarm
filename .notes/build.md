@@ -176,3 +176,7 @@ The second consideration was how the agent was going to be instructed. Every age
 I kept them separated because the first is constant — it applies to every agent the same way. The second is per-call — it's what the agent is being asked to do right now.
 
 Then I wrote separate request formatters for Anthropic and OpenAI/Gemini to translate everything into each provider's expected format, send the request, and extract the response.
+
+## Multi Agent Setup
+
+Started with setting up the user types in `personas.py`, removed the default hardcoded persona we had wired up in main. `personas.py` also handles weight distribution and reading the `.swarm/users.json` file. It exists as its own file to separate everything "user types" related.
