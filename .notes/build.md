@@ -35,7 +35,7 @@ uv init
 **2. Add dependencies**
 
 ```bash
-uv add requests
+uv add click
 ```
 
 **3. Install dependencies (fast, cached)**
@@ -50,7 +50,7 @@ uv sync
 uv run main.py
 ```
 
-> Note: UV keeps the virtual environment in `.venv` and doesn't auto-activate it during development. Dependencies automatically go into `.venv`, and `uv run` uses it automatically. This keeps the environment sperated and isolated, which is good.
+> Note: UV keeps the virtual environment in `.venv` and doesn't auto-activate it during development. Dependencies automatically go into `.venv`, and `uv run` uses it automatically. This keeps the environment separated and isolated, which is good.
 
 ## Click Conventions
 
@@ -60,7 +60,7 @@ uv add click
 
 I added conventions to `CLAUDE.md` based on Simon Willison's [blog post](https://simonwillison.net/2023/Sep/30/cli-tools-python/).
 
-**Arguments** are good for happy paths - required, positional inputs - things every run needs. For this project, that's `target` (URL or screenshot path) and `task`.
+**Arguments** are good for happy paths — required, positional inputs - things that every run needs. For this project, that's `target` (URL or screenshot path) and `task`.
 
 ```
 ux-swarm [target] [task]
@@ -85,13 +85,13 @@ ux-swarm = "main:cli"
 swarm = "main:cli"
 ```
 
-and then I installed in editable mode:
+and then installed in editable mode:
 
 ```bash
 uv pip install -e .
 ```
 
-So now both `swarm` and `ux-swarm` work anywhere in the terminal. Editable mode means changes to `main.py` take effect immediately without reinstalling.
+Both `swarm` and `ux-swarm` now work anywhere in the terminal. Editable mode means changes to `main.py` take effect immediately without reinstalling.
 
 Examples:
 
@@ -102,11 +102,11 @@ swarm screenshot.png "find and submit the contact form"
 
 ## Build Backend
 
-We need to have this project be a distributable package. The build backend is responsible for that. Traditionally this was done by Hatchling or other tools, but UV now ships its own native build backend (`uv_build`).
+We need this project to be a distributable package. The build backend is responsible for that. Traditionally this was done by Hatchling or other tools, but UV now ships its own native build backend (`uv_build`).
 
-uv's default convention for installable packages with CLI entrypoints is `src/<package>` — it's what `uv init --package` generates out of the box. We restructured the folder structure to follow that convention.
+UV's default convention for installable packages with CLI entry points is `src/<package>` — it's what `uv init --package` generates out of the box. We restructured the folder to follow that convention.
 
-1. We added a build system block to `pyproject.toml` and updated the entry points to reflect the new location:
+1. Added a build system block to `pyproject.toml` and updated the entry points to reflect the new location:
 
 ```toml
 [build-system]
@@ -120,22 +120,22 @@ ux-swarm = "ux_swarm.main:cli"
 swarm = "ux_swarm.main:cli"
 ```
 
-2. We moved main.py and added `__init__.py`:
+2. Moved `main.py` and added `__init__.py`:
 
 ```
 main.py  →  src/ux_swarm/main.py
 ```
 
-The naming feels weird because Python has two conventions that don't match: Folders and imports use underscores (`ux_swarm`), install names and CLI commands use hyphens (`ux-swarm`, `swarm`)
+The naming feels weird because Python has two conventions that don't match: folders and imports use underscores (`ux_swarm`), install names and CLI commands use hyphens (`ux-swarm`, `swarm`).
 
-## Recap - Done with Scaffolding
+## Recap — Done with Scaffolding
 
 - `UV` is set up for package management
 - `Click` is wired up
 - `run` command is working implicitly, no need to type it in
-- We have a few argument surfaces defined: `url`, `task`, plus `--users`, `--max-steps`, `--viewport`, `--verbose`
+- Argument surfaces defined: `target`, `task`, plus `--users`, `--max-steps`, `--viewport`, `--verbose`
 - `swarm` and `ux-swarm` are installed as real CLI commands via `pyproject.toml` + `uv pip install -e .`
-- Folder structure is aligned with uv best practices
+- Folder structure is aligned with UV best practices
 
 ## Pydantic and BaseModel
 
@@ -145,17 +145,26 @@ I installed Pydantic with `uv add pydantic` because the app receives responses f
 
 Pydantic library provides `model_validate()` for parsing raw JSON into a proper Python object, and `model_json_schema()` for sending the schema to the LLM so it knows exactly what shape to return.
 
-The data shapes will evolve and that's ok. What matters now is that we now have the "three systems of governance" in place - the docs, the models, and the code. Each one describes the same thing at a different level. We'll eventually add tests so all three stay in sync.
+The data shapes will evolve and that's ok. What matters now is that we now have the "three systems of governance" in place — the docs, the models, and the code. Each one describes the same thing at a different level. We'll eventually add tests so all three stay in sync.
 
-Models were created in `src/ux_swarm/models.py`
-
+Models live in `src/ux_swarm/models.py`.
 
 ## Config Wizard
 
-Started with adding two dependencies: **Rich** for stylized terminal output (colored text, spinner, etc) and **Playwright** so we can run checks on teh Chromium browser binary is already installed, and becuase it;s used during `run`
+Started with adding two dependencies: **Rich** for stylized terminal output (colored text, spinners, etc.) and **Playwright** to check whether the Chromium browser binary is installed, and because it's used during `run`.
 
-The first thing I did was create the menu navigation function, this is a complicated function with rewrites whose data can be ported in from another component, makes sense to keep in its own `menu.py` file
+The first thing I built was the menu navigation function. It's complex enough — and reusable enough — that it lives in its own `menu.py` file.
 
-Then, we built out `config.py` with a list of providers and config and error handling. Once the file was built initially and simply, more work went into building out a function that dynamically pulls the list of available models from Anthropic, OpenAI, DeepSeek, and Google for the config wizard so the list of available models are always up to date
+Then I built out `config.py` with the provider list, config handling, and error handling. Once the basics were in place, I added a function that dynamically fetches the available model list from Anthropic, OpenAI, DeepSeek, and Google, so the wizard always shows current models rather than a hardcoded list.
 
-Lastly in config, we set up save and laod fucntions for the local disc, and a Playwright check function.
+Lastly in config, I set up save and load functions for the local disk, and a Playwright check function.
+
+After a UX pass, a few things worth noting:
+
+Playwright (the Python package) is always installed when a user downloads ux-swarm from PyPI. Because it's listed as a dependency, pip installs it automatically. Chromium is not. Chromium is a browser binary, not a Python package, so it doesn't come along for the ride. Users have to install it separately via `playwright install chromium`, which is why the config wizard prompts them to do it.
+
+Because of this, I only expect users to have trouble with Chromium, not Playwright itself. That's why the wizard combines both into a single "Playwright status" step rather than separating them — Playwright is the recognizable name, and Chromium is its add-on.
+
+DeepSeek doesn't support vision models, so it was removed from the project entirely.
+
+
