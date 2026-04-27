@@ -27,7 +27,7 @@ I created a project prototype at [masonomara/ux-swarm--beta](https://github.com/
 
 - **Python 3.11+** — asyncio, ExceptionGroup, clean CancelledError propagation
 - **Click** — CLI framework; SmartGroup for implicit URL/image routing
-- **LiteLLM** — provider abstraction across OpenAI, Anthropic, Gemini, DeepSeek
+- **LiteLLM** — provider abstraction across OpenAI, Anthropic, Gemini
 - **Playwright (async)** — browser automation; one browser instance, isolated contexts per agent
 - **Pydantic** — data models and result serialization
 - **Rich** — terminal output; live progress table during runs, formatted result display
@@ -42,7 +42,7 @@ swarm run <target (url/image)> <task>      # explicit
 swarm config                               # first-run onboarding wizard and config editor
 swarm users                                # list active user types and weights
 swarm users --config                       # write .swarm/users.json for editing
-swarm report                               # list and view saved results - essentially puts .swarm/report.json into plain text in the terminal
+swarm results                              # list and view saved results - essentially puts .swarm/results.json into plain text in the terminal
 ```
 
 **Options on `run`:**
@@ -60,7 +60,7 @@ swarm report                               # list and view saved results - essen
 
 On first run, `swarm config` walks through an interactive setup wizard with selectable list inputs and incremental rendering.
 
-1. Select LLM provider (OpenAI, Anthropic, Gemini, DeepSeek)
+1. Select LLM provider (OpenAI, Anthropic, Gemini)
 2. Enter API key — validated live against the provider
 3. Select model — list generated dynamically from the provider
 4. Install Playwright and Chromium — required to continue; the wizard does not complete without it
@@ -157,4 +157,4 @@ Results are saved to `.swarm/results.json` as an append-only array. Each entry r
 ]
 ```
 
-`swarm report` lists all entries with timestamp, mode, target, and completion rate. Use `-n 3` to show the last three results.
+`swarm results` lists all entries with timestamp, mode, target, and completion rate. Use `-n 3` to show the last three results.

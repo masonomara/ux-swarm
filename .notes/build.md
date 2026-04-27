@@ -182,3 +182,17 @@ Then I wrote separate request formatters for Anthropic and OpenAI/Gemini to tran
 Started with setting up the user types in `personas.py`, removed the default hardcoded persona we had wired up in main. `personas.py` also handles weight distribution and reading the `.swarm/users.json` file. It exists as its own file to separate everything "user types" related.
 
 Then, I worked on removing the custom request formatters for LiteLLM in `agents.py`. We are doing a single uniform task over multiple providers, no need for a channel adapter for different models when there's a thrid-party service that can manage them all. This makes edge cases such as Rate Limit errors all uniformly handled, normalized. Way less maintence unless LiteLLm itself breaks, it is now a single point of failue. Lets make sure that LiteLLM stays siloed.
+
+**Swarm coordinator (`swarm.py`)**
+
+- `asyncio.TaskGroup` (Python 3.11+) for structured concurrency — exceptions propagate cleanly, cancelled tasks cancel the group
+- `asyncio.Semaphore` caps concurrent API calls — default 5 for screenshot mode, browser will be lower
+- Silent agent drop on failure: if one agent throws, it's excluded from results rather than crashing the whole run — `_aggregate` handles the all-failed edge case
+- `on_agent_done` callback keeps progress rendering in `main.py`, not inside the coordinator — swarm stays output-agnostic
+
+
+Created teh ssawrm coordinator, witha. few key decisions like bringing in `asyncio.taskGroup` and `asyncio.Semaphore`
+
+Shifted teh swarm output froma. per-agent display we itianlly set up for the single agent into an aggregated results and popular friction points, plus a progress state
+
+regarding result storage, we moved the results from intiially timestamped files like `.swarm/reports/{timestamp}_{stem}.json` to append-only array in `.swarm/results.json` for much simpelr reads and exports. makes teh `swarm results` function easier as well

@@ -330,7 +330,7 @@ async def run_screenshot_swarm(
 
 ### Concurrency Design
 
-One `asyncio.Semaphore(max_concurrent)` throttles LLM calls. A semaphore is a counter that limits how many tasks can do something at the same time. `asyncio.Semaphore(20)` means at most 20 agents can be actively waiting on an LLM response simultaneously — the 21st waits at the door until one of the 20 finishes and releases its slot. Without it, `--users 100` would fire 100 simultaneous API calls and immediately hit rate limits.
+One `asyncio.Semaphore(max_concurrent)` throttles LLM calls. A semaphore is a counter that limits how many tasks can do something at the same time. `asyncio.Semaphore(5)` means at most 5 agents can be actively waiting on an LLM response simultaneously — the 6th waits at the door until one of the 5 finishes and releases its slot. Without it, `--users 100` would fire 100 simultaneous API calls and immediately hit rate limits.
 
 In screenshot mode, each agent makes exactly one LLM call — so the concurrency semaphore IS the LLM semaphore. No need for a second semaphore (unlike browser mode, where agents make multiple LLM calls across steps and the two limits are independent).
 
@@ -654,7 +654,7 @@ def users(write_config):
 
 ### `RUN_DEFAULTS` Update
 
-The existing dict already has `max_concurrent_screenshot: 20`. Add `default_users`:
+The existing dict already has `max_concurrent_screenshot: 5`. Add `default_users`:
 
 ```python
 RUN_DEFAULTS: dict[str, int | float] = {
@@ -662,7 +662,7 @@ RUN_DEFAULTS: dict[str, int | float] = {
     "max_steps": 3,
     "viewport_width": 1280,
     "max_concurrent_browser": 5,
-    "max_concurrent_screenshot": 20,
+    "max_concurrent_screenshot": 5,
 }
 ```
 
@@ -687,6 +687,13 @@ RUN_DEFAULTS: dict[str, int | float] = {
 ---
 
 ## Design Decisions
+
+**Thundering herd prevention: jitter + staggered launch.**
+
+- Without mitigation, all `max_concurrent` agents fire at the same millisecond, exhaust the provider's rate-limit window together, then retry at exactly the same second — hammering the API in synchronized waves
+- Two fixes work together; neither alone is sufficient
+- **Retry jitter** (`agent.py`): instead of `sleep(delay)`, sleep `delay + random.uniform(0, delay * 0.5)` — adds up to 50% noise, so agents that hit the limit at the same time retry at different moments (60–90s, 120–180s, 240–360s)
+- **Staggered launch** (`swarm.py`): the first `max_concurrent` task creations are separated by `asyncio.sleep(0.3)`, spreading the initial burst across ~1.5 seconds; subsequent tasks are created immediately — they block on the semaphore anyway, so no latency cost
 
 **TaskGroup over gather.** `asyncio.gather(return_exceptions=True)` collects exceptions but allows all tasks to complete regardless of fatal errors. `asyncio.TaskGroup` cancels siblings immediately on unhandled exceptions. We use TaskGroup with per-agent exception catching inside each task — individual agent failures are swallowed (except `CancelledError`), so the TaskGroup itself never sees an unhandled exception and never cancels siblings. This is strictly safer than gather because a programming error (not an agent failure) will still propagate correctly.
 
@@ -749,6 +756,7 @@ RUN_DEFAULTS: dict[str, int | float] = {
 - [x] **Delete** `_call_openai_compat` function
 - [x] **Delete** `_call_llm` function
 - [x] **Add** `_RETRY_DELAYS = (60, 120, 240)` constant
+- [x] **Add** `import random`; apply jitter to retry sleep: `delay + random.uniform(0, delay * 0.5)`
 - [x] **Rewrite** `run_screenshot_agent` as `async def`:
   - [x] Update signature: remove `provider`, `model_id`, and `api_key` params, add `model: str` (full string); update return type to `tuple[ScreenshotDecision, int, int, float]`
   - [x] Call `_load_image(target)` — unchanged
@@ -783,7 +791,7 @@ RUN_DEFAULTS: dict[str, int | float] = {
     - [x] `except asyncio.CancelledError: raise`
     - [x] `except Exception: pass`
     - [x] `finally:` increment `completed_count`; call `on_agent_done(completed_count, num_agents)` if set
-  - [x] `async with asyncio.TaskGroup() as tg:` — `tg.create_task(_run_agent(idx, user_type))` for each assigned slot
+  - [x] `async with asyncio.TaskGroup() as tg:` — `tg.create_task(_run_agent(idx, user_type))` for each assigned slot; `await asyncio.sleep(0.3)` after each of the first `max_concurrent` creations to stagger the initial burst
   - [x] Return `_aggregate(results, target, task, model, num_agents)`
 - [x] Implement `_aggregate(results, target, task, model, num_agents) -> SwarmResult`:
   - [x] Raise `ClickException` if `len(results) == 0`
@@ -801,60 +809,60 @@ RUN_DEFAULTS: dict[str, int | float] = {
 
 **Imports**
 
-- [ ] Add `import asyncio` and `import os`
-- [ ] Add `from rich.live import Live` and `from rich.text import Text`
-- [ ] Add `from ux_swarm.personas import load_users`
-- [ ] Add `from ux_swarm.swarm import run_screenshot_swarm`
-- [ ] Remove `from ux_swarm.agent import run_screenshot_agent`
-- [ ] Remove `AgentResult` from the `ux_swarm.models` import (keep `SwarmResult`, `UserType`, `ScreenshotDecision`)
+- [x] Add `import asyncio` and `import os`
+- [x] Add `from rich.live import Live` and `from rich.text import Text`
+- [x] Add `from ux_swarm.personas import load_users`
+- [x] Add `from ux_swarm.swarm import run_screenshot_swarm`
+- [x] Remove `from ux_swarm.agent import run_screenshot_agent`
+- [x] Remove `AgentResult` from the `ux_swarm.models` import (keep `SwarmResult`, `UserType`, `ScreenshotDecision`)
 
 **Module-level additions**
 
-- [ ] Add `_PROVIDER_ENV_VARS = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY"}`
-- [ ] Add `def _inject_api_key(provider, api_key)` — sets `os.environ[env_var] = api_key`
+- [x] Add `_PROVIDER_ENV_VARS = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY"}`
+- [x] Add `def _inject_api_key(provider, api_key)` — sets `os.environ[env_var] = api_key`
 
 **`run` command**
 
-- [ ] Extract `provider = config.get("provider", "")` from config
-- [ ] Call `_inject_api_key(provider, api_key)` before the swarm
-- [ ] Add `num_agents = users or RUN_DEFAULTS["default_users"]`
-- [ ] Add `max_concurrent = RUN_DEFAULTS["max_concurrent_screenshot"]`
-- [ ] Call `user_types = load_users()`
-- [ ] Replace `_console.status(...)` with `with Live(console=_console, auto_refresh=False) as live:`
-- [ ] Define `on_done(done, total)` callback inside the `Live` block — calls `live.update(Text(...), refresh=True)`
-- [ ] Replace `run_screenshot_agent(...)` call with `asyncio.run(run_screenshot_swarm(..., on_agent_done=on_done))`
-- [ ] Update `except` block: re-raise `click.ClickException` directly, wrap others
-- [ ] Remove old `AgentResult(...)` construction block
-- [ ] Remove hardcoded `UserType(label="Default User", ...)` block
-- [ ] Update report filename: use `Path(target).stem` instead of hardcoded `"screenshot"`
-- [ ] Update report write: `result.model_dump_json(indent=2)` (SwarmResult, not AgentResult)
-- [ ] Wrap report write in `try/except OSError` — print warning, don't raise
-- [ ] Replace `_print_result(...)` call with `_print_swarm_result(target, task, result)`
+- [x] Extract `provider = config.get("provider", "")` from config
+- [x] Call `_inject_api_key(provider, api_key)` before the swarm
+- [x] Add `num_agents = users or RUN_DEFAULTS["default_users"]`
+- [x] Add `max_concurrent = RUN_DEFAULTS["max_concurrent_screenshot"]`
+- [x] Call `user_types = load_users()`
+- [x] Replace `_console.status(...)` with `with Live(console=_console, auto_refresh=False) as live:`
+- [x] Define `on_done(done, total)` callback inside the `Live` block — calls `live.update(Text(...), refresh=True)`
+- [x] Replace `run_screenshot_agent(...)` call with `asyncio.run(run_screenshot_swarm(..., on_agent_done=on_done))`
+- [x] Update `except` block: re-raise `click.ClickException` directly, wrap others
+- [x] Remove old `AgentResult(...)` construction block
+- [x] Remove hardcoded `UserType(label="Default User", ...)` block
+- [x] Update report filename: use `Path(target).stem` instead of hardcoded `"screenshot"`
+- [x] Update report write: `result.model_dump_json(indent=2)` (SwarmResult, not AgentResult)
+- [x] Wrap report write in `try/except OSError` — print warning, don't raise
+- [x] Replace `_print_result(...)` call with `_print_swarm_result(target, task, result)`
 
 **`_print_swarm_result` function (new)**
 
-- [ ] Remove old `_print_result` function entirely
-- [ ] Add `def _print_swarm_result(target, task, result):`
-  - [ ] Compute `rate_pct` and `moe_pct` as percent strings
-  - [ ] Set `rate_style` based on thresholds: `>=0.8` → `"green"`, `>=0.5` → `"yellow"`, else `"red"`
-  - [ ] Print opening rule, blank line
-  - [ ] Print `filename — "task"` header
-  - [ ] Print rate + moe + agent count line with color
-  - [ ] Print user breakdown section only if `len(result.user_breakdown) > 1`
-  - [ ] Print friction section: `Counter(result.friction_points).most_common(5)`, only if any exist
-  - [ ] Print dim footer: model name + cost (only if cost > 0)
-  - [ ] Print closing rule
+- [x] Remove old `_print_result` function entirely
+- [x] Add `def _print_swarm_result(target, task, result):`
+  - [x] Compute `rate_pct` and `moe_pct` as percent strings
+  - [x] Set `rate_style` based on thresholds: `>=0.8` → `"green"`, `>=0.5` → `"yellow"`, else `"red"`
+  - [x] Print opening rule, blank line
+  - [x] Print `filename — "task"` header
+  - [x] Print rate + moe + agent count line with color
+  - [x] Print user breakdown section only if `len(result.user_breakdown) > 1`
+  - [x] Print friction section: `Counter(result.friction_points).most_common(5)`, only if any exist
+  - [x] Print dim footer: model name + cost (only if cost > 0)
+  - [x] Print closing rule
 
 **`users` command (new)**
 
-- [ ] Add `@cli.command()` with `--config` flag option (`write_config`)
-- [ ] If `write_config` and `USERS_JSON` exists: print "already exists" message
-- [ ] If `write_config` and `USERS_JSON` absent: call `write_default_users()`, print path
-- [ ] Else: call `load_users()`, print each user type with weight share and truncated description (120 chars)
+- [x] Add `@cli.command()` with `--config` flag option (`write_config`)
+- [x] If `write_config` and `USERS_JSON` exists: print "already exists" message
+- [x] If `write_config` and `USERS_JSON` absent: call `write_default_users()`, print path
+- [x] Else: call `load_users()`, print each user type with weight share and truncated description (120 chars)
 
 **`RUN_DEFAULTS`**
 
-- [ ] Confirm `"default_users": 20` is present (already in current code — verify, don't add duplicate)
+- [x] Confirm `"default_users": 20` is present (already in current code — verify, don't add duplicate)
 
 ---
 
@@ -862,34 +870,34 @@ RUN_DEFAULTS: dict[str, int | float] = {
 
 **Single-agent baseline**
 
-- [ ] Run `swarm screenshot.png "find the login button" --users 1` — confirm progress shows `1 / 1`, final summary displays correctly
-- [ ] Confirm `.swarm/reports/` contains one `{timestamp}_{stem}.json` file
-- [ ] Confirm report JSON parses as valid `SwarmResult` with `mode="screenshot"`, `users=1`, `individual_results` has 1 entry
+- [x] Run `swarm screenshot.png "find the login button" --users 1` — confirm progress shows `1 / 1`, final summary displays correctly
+- [x] Confirm `.swarm/reports/` contains one `{timestamp}_{stem}.json` file
+- [x] Confirm report JSON parses as valid `SwarmResult` with `mode="screenshot"`, `users=1`, `individual_results` has 1 entry
 
 **Multi-agent run**
 
-- [ ] Run with `--users 5` — confirm progress counter increments 5 times during run
-- [ ] Confirm `SwarmResult.completion_rate` is `completed_count / 5` (check individual_results manually)
-- [ ] Confirm `SwarmResult.users` reflects successful agents, not `num_agents` (kill network mid-run to test)
+- [x] Run with `--users 5` — confirm progress counter increments 5 times during run
+- [x] Confirm `SwarmResult.completion_rate` is `completed_count / 5` (check individual_results manually)
+- [x] Confirm `SwarmResult.users` reflects successful agents, not `num_agents` (kill network mid-run to test)
 
 **Display**
 
-- [ ] Confirm rate is green at ≥80%, yellow at ≥50%, red below 50% (test with a trivial/impossible task)
-- [ ] Confirm user breakdown section is hidden when only one user type is active
-- [ ] Confirm friction section is omitted entirely when `friction_points` is empty
-- [ ] Confirm cost footer is omitted when `total_cost == 0.0`
+- [x] Confirm rate is green at ≥80%, yellow at ≥50%, red below 50% (test with a trivial/impossible task)
+- [x] Confirm user breakdown section is hidden when only one user type is active
+- [x] Confirm friction section is omitted entirely when `friction_points` is empty
+- [x] Confirm cost footer is omitted when `total_cost == 0.0`
 
 **`users` command**
 
-- [ ] Run `swarm users` — confirms default user type printed with weight and truncated description
-- [ ] Run `swarm users --config` — creates `.swarm/users.json`, prints path
-- [ ] Run `swarm users --config` again — prints "already exists", does not overwrite
-- [ ] Edit `.swarm/users.json` to have two types, run with `--users 10` — confirm user breakdown shows both labels with correct distribution
+- [x] Run `swarm users` — confirms default user type printed with weight and truncated description
+- [x] Run `swarm users --config` — creates `.swarm/users.json`, prints path
+- [x] Run `swarm users --config` again — prints "already exists", does not overwrite
+- [x] Edit `.swarm/users.json` to have two types, run with `--users 10` — confirm user breakdown shows both labels with correct distribution
 
 **Error paths**
 
-- [ ] Bad image path → `ClickException` with clear message, no traceback
-- [ ] URL as target → `ClickException` with browser-mode redirect message
-- [ ] No config → `ClickException` pointing to `swarm config`
-- [ ] Corrupt `.swarm/users.json` (invalid JSON) → `ClickException` naming the file
-- [ ] `--verbose` flag → full traceback on any failure
+- [x] Bad image path → `ClickException` with clear message, no traceback
+- [x] URL as target → `ClickException` with browser-mode redirect message
+- [x] No config → `ClickException` pointing to `swarm config`
+- [x] Corrupt `.swarm/users.json` (invalid JSON) → `ClickException` naming the file
+- [x] `--verbose` flag → full traceback on any failure

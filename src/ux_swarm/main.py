@@ -1,14 +1,21 @@
-import click
-from datetime import datetime, timezone
+import asyncio
+import json
+import os
+from collections import Counter
 from importlib.metadata import metadata, PackageNotFoundError
 from pathlib import Path
-from rich.console import Console
 
-from ux_swarm.agent import run_screenshot_agent
+import click
+from rich.console import Console
+from rich.live import Live
+from rich.spinner import Spinner
+
 from ux_swarm.cli import SmartGroup
 from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, LOCAL_DIR, PROVIDERS, playwright_state, load_config, run_config_wizard
 from ux_swarm.menu import select
-from ux_swarm.models import AgentResult, UserType
+from ux_swarm.models import SwarmResult
+from ux_swarm.personas import load_users
+from ux_swarm.swarm import run_screenshot_swarm
 
 try:
     _meta = metadata("ux-swarm")
@@ -19,6 +26,15 @@ except PackageNotFoundError:
     __description__ = ""
 
 _console = Console()
+RESULTS_JSON = LOCAL_DIR / "results.json"
+
+
+def _inject_api_key(provider: str, api_key: str) -> None:
+    """Write the configured API key into the environment so LiteLLM can read it."""
+    env_var = next((p["env"] for p in PROVIDERS if p["key"] == provider), None)
+    if env_var and api_key:
+        os.environ[env_var] = api_key
+
 
 ASCII_ART = ("  __  ___  __    _____      _____   ___  __  ___\n"
              " / / / / |/_/___/ __/ | /| / / _ | / _ \\/  |/  /\n"
@@ -68,6 +84,8 @@ def _print_home() -> None:
     _console.print("  swarm <target> <task>\n", highlight=False)
     _console.print("Commands:\n")
     _console.print("  config   Run setup wizard")
+    _console.print("  users    List active user types")
+    _console.print("  results  View saved results")
     _console.print("  help     View all commands")
     _console.print("\n---\n")
 
@@ -101,61 +119,59 @@ def help(ctx):
 
 
 # TODO: find a permanent home for these once the run command is built out
-RUN_DEFAULTS: dict[str, int | float] = {
+RUN_DEFAULTS: dict[str, int] = {
     "default_users": 20,
     "max_steps": 3,
     "viewport_width": 1280,
     "max_concurrent_browser": 5,
-    "max_concurrent_screenshot": 20,
+    "max_concurrent_screenshot": 5,
 }
 
 
-# TODO: find a permanent home for this once a storage/reports layer exists
-def ensure_swarm_structure() -> None:
-    """Create the .swarm/reports/ directory tree if it doesn't already exist."""
-    (LOCAL_DIR / "reports").mkdir(parents=True, exist_ok=True)
+def _print_swarm_result(result: SwarmResult) -> None:
+    """Render aggregated swarm results to the terminal between rule dividers."""
+    filename = Path(result.target).name
+    rate_pct = f"{result.completion_rate:.0%}"
+    moe_pct = f"±{result.margin_of_error:.0%}"
 
-
-def _print_result(
-    target: str,
-    task: str,
-    model_id: str,
-    result: AgentResult,
-) -> None:
-    """Render a single-agent result to the terminal between rule dividers."""
-    filename = Path(target).name
+    if result.completion_rate >= 0.8:
+        rate_style = "green"
+    elif result.completion_rate >= 0.5:
+        rate_style = "yellow"
+    else:
+        rate_style = "red"
 
     _console.print()
     _console.rule(style="dim")
     _console.print()
-    _console.print(f"  {filename} — \"{task}\"", highlight=False)
+    _console.print(f"  {filename} — \"{result.task}\"", highlight=False)
     _console.print()
-    _console.print(f"  [bold]\"{result.comment}\"[/]", highlight=False)
-    _console.print()
-    _console.print(f"  [dim]Target[/]   {result.target_element}",
-                   highlight=False)
-    _console.print(f"  [dim]Reason[/]   {result.reasoning}", highlight=False)
+    _console.print(
+        f"  [{rate_style}][bold]{rate_pct}[/bold][/]  {moe_pct}  ·  {result.users} agents",
+        highlight=False,
+    )
+
+    if len(result.user_breakdown) > 1:
+        _console.print()
+        _console.print("  User Breakdown", highlight=False)
+        for label, rate in result.user_breakdown.items():
+            _console.print(f"  [dim]{label:<20}[/]  {rate:.0%}",
+                           highlight=False)
 
     if result.friction_points:
+        top = Counter(fp for fp in result.friction_points if fp).most_common(5)
         _console.print()
         _console.print("  Friction", highlight=False)
-        for point in result.friction_points:
+        for point, _ in top:
             _console.print(f"  [dim]•[/] {point}", highlight=False)
 
     _console.print()
-    completed = "Yes" if result.completed else "[dim]No[/]"
-    abandoned = "Yes" if result.abandoned else "[dim]No[/]"
-    _console.print(f"  Completed {completed}   ·   Abandoned {abandoned}",
-                   highlight=False)
-
-    if result.abandoned and result.abandonment_reason:
-        _console.print(f"  [dim]Reason[/]   {result.abandonment_reason}",
-                       highlight=False)
-
-    _console.print()
-    _console.print(
-        f"  [dim]{model_id}  ·  {result.input_tokens} in / {result.output_tokens} out tokens[/]",
-        highlight=False)
+    model_line = result.model
+    if result.total_cost:
+        model_line += f"  ·  ${result.total_cost:.4f}"
+    timestamp = result.timestamp[:16].replace("T", "  ")
+    model_line += f"  ·  {timestamp}  ·  {result.mode}"
+    _console.print(f"  [dim]{model_line}[/]", highlight=False)
     _console.print()
     _console.rule(style="dim")
     _console.print()
@@ -185,9 +201,13 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
             "URL targets require browser mode, which is not yet available. "
             "Pass a screenshot image path instead.")
 
+    if not Path(target).exists():
+        raise click.ClickException(f"Image not found: {target}")
+
     config = load_config()
     model_full = config.get("model", "")
     api_key = config.get("api_key", "")
+    provider = config.get("provider", "")
 
     if not model_full:
         raise click.ClickException(
@@ -196,51 +216,115 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
         raise click.ClickException(
             "No API key configured — run `swarm config` to set one.")
 
-    provider, model_id = model_full.split("/", 1)
+    _inject_api_key(provider, api_key)
 
-    # TODO: move to personas.py once multiple user types exist
-    user_type = UserType(
-        label="Default User",
-        weight=1.0,
-        description=
-        ("You scan rather than read. You satisfice — you pick the first option that "
-         "seems good enough rather than evaluating everything. You muddle through: you "
-         "rarely read instructions and rely on guessing what things do. You have low "
-         "tolerance for friction and give up quickly when confused."),
-    )
+    num_agents = users or RUN_DEFAULTS["default_users"]
+    max_concurrent = RUN_DEFAULTS["max_concurrent_screenshot"]
 
-    filename = Path(target).name
+    user_types = load_users()
+
     try:
-        with _console.status(f"  {filename} — \"{task}\""):
-            decision, in_tok, out_tok = run_screenshot_agent(
-                target, task, user_type, provider, model_id, api_key)
+        with Live(
+                Spinner("dots",
+                        text=f"  0 / {num_agents}  agents running",
+                        style="dim"),
+                console=_console,
+                refresh_per_second=10,
+        ) as live:
+
+            def on_done(done: int, total: int) -> None:
+                live.update(
+                    Spinner("dots",
+                            text=f"  {done} / {total}  agents complete",
+                            style="dim"), )
+
+            result = asyncio.run(
+                run_screenshot_swarm(
+                    target=target,
+                    task=task,
+                    users=user_types,
+                    num_agents=num_agents,
+                    model=model_full,
+                    max_concurrent=max_concurrent,
+                    on_agent_done=on_done,
+                ))
+    except click.ClickException:
+        raise
     except Exception as exc:
         if verbose:
             raise
         raise click.ClickException(str(exc)) from exc
 
-    result = AgentResult(
-        agent_index=0,
-        user_type=user_type.label,
-        completed=decision.completed,
-        abandoned=decision.abandoned,
-        abandonment_reason=decision.abandonment_reason,
-        friction_points=decision.friction_observed,
-        comment=decision.comment,
-        target_element=decision.target_element,
-        reasoning=decision.reasoning,
-        steps_taken=1,
-        input_tokens=in_tok,
-        output_tokens=out_tok,
-        cost=0.0,
-    )
+    LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        existing = json.loads(
+            RESULTS_JSON.read_text()) if RESULTS_JSON.exists() else []
+        existing.append(result.model_dump())
+        RESULTS_JSON.write_text(json.dumps(existing, indent=2) + "\n")
+    except (OSError, json.JSONDecodeError) as exc:
+        _console.print(f"[dim]Warning: could not save results: {exc}[/]")
 
-    ensure_swarm_structure()
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    report_path = LOCAL_DIR / "reports" / f"{timestamp}_screenshot.json"
-    report_path.write_text(result.model_dump_json(indent=2) + "\n")
+    _print_swarm_result(result)
 
-    _print_result(target, task, model_id, result)
+
+@cli.command()
+@click.option("--config",
+              "write_config",
+              is_flag=True,
+              help="Write .swarm/users.json for editing")
+def users(write_config):
+    """List active user types and weights. Use --config to write .swarm/users.json."""
+    from ux_swarm.personas import USERS_JSON, write_default_users
+
+    if write_config:
+        if USERS_JSON.exists():
+            _console.print(f"[dim]{USERS_JSON} already exists.[/]")
+        else:
+            path = write_default_users()
+            _console.print(f"[green]Written →[/] {path}")
+            _console.print(
+                "[dim]Edit the file to define user types and weights.[/]")
+        return
+
+    active = load_users()
+    total_weight = sum(u.weight for u in active)
+    _console.print()
+    for u in active:
+        share = u.weight / total_weight
+        _console.print(f"  [bold]{u.label}[/]  [dim]{share:.0%}[/]",
+                       highlight=False)
+        _console.print(
+            f"  [dim]{u.description[:120]}{'…' if len(u.description) > 120 else ''}[/]",
+            highlight=False,
+        )
+        _console.print()
+
+
+@cli.command()
+@click.option("-n", default=None, type=int, help="Show last N results")
+def results(n):
+    """List saved swarm results."""
+    if not RESULTS_JSON.exists():
+        _console.print(
+            "[dim]No results yet. Run `swarm <target> <task>` to get started.[/]"
+        )
+        return
+
+    try:
+        entries = json.loads(RESULTS_JSON.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise click.ClickException(
+            f"Could not read results.json: {exc}") from exc
+
+    if not entries:
+        _console.print("[dim]No results yet.[/]")
+        return
+
+    if n:
+        entries = entries[-n:]
+
+    for entry in entries:
+        _print_swarm_result(SwarmResult.model_validate(entry))
 
 
 if __name__ == "__main__":

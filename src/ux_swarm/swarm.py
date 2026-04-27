@@ -66,6 +66,8 @@ async def run_screenshot_swarm(
     async with asyncio.TaskGroup() as tg:
         for idx, user_type in enumerate(assigned):
             tg.create_task(_run_agent(idx, user_type))
+            if idx < max_concurrent:
+                await asyncio.sleep(0.3)
 
     return _aggregate(results, target, task, model, num_agents)
 

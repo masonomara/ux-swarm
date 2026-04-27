@@ -12,16 +12,15 @@ DEFAULT_USERS: list[UserType] = [
     UserType(
         label="Default User",
         weight=1.0,
-        description=(
-            "In a hurry and doesn't read pages — scans them quickly, looking for words "
-            "or links that match the task. Doesn't weigh options or look for the best "
-            "choice; clicks the first thing that looks reasonable enough to work "
-            "(satisficing). Doesn't try to understand how the site is structured or how "
-            "things work — muddles through, and if something seems to work, sticks with "
-            "it without figuring out why. Has low tolerance for friction: any moment "
-            "that requires stopping to think, read instructions, or decode an interface "
-            "increases the chance of giving up and abandoning the task."
-        ),
+        description=
+        ("In a hurry and doesn't read pages — scans them quickly, looking for words "
+         "or links that match the task. Doesn't weigh options or look for the best "
+         "choice; clicks the first thing that looks reasonable enough to work "
+         "(satisficing). Doesn't try to understand how the site is structured or how "
+         "things work — muddles through, and if something seems to work, sticks with "
+         "it without figuring out why. Has low tolerance for friction: any moment "
+         "that requires stopping to think, read instructions, or decode an interface "
+         "increases the chance of giving up and abandoning the task."),
     )
 ]
 
@@ -35,7 +34,7 @@ def load_users() -> list[UserType]:
         raw = json.loads(USERS_JSON.read_text())
         users = [UserType.model_validate(entry) for entry in raw]
         return users if users else list(DEFAULT_USERS)
-    except (json.JSONDecodeError, Exception) as exc:
+    except Exception as exc:
         raise click.ClickException(f"users.json is invalid: {exc}") from exc
 
 

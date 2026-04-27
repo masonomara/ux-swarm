@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import random
 from pathlib import Path
 from typing import cast
 
@@ -54,7 +55,7 @@ def _build_system_prompt(user_type: UserType) -> str:
     )
 
 
-async def _call_with_retry(model: str, messages: list) -> ModelResponse:
+async def _call_with_retry(model: str, messages: list[dict]) -> ModelResponse:
     """Call acompletion with exponential backoff on rate limits; raises ClickException after all retries exhausted."""
     for delay in (*_RETRY_DELAYS, None):
         try:
@@ -70,7 +71,7 @@ async def _call_with_retry(model: str, messages: list) -> ModelResponse:
                 raise click.ClickException(
                     f"Rate limited after {len(_RETRY_DELAYS) + 1} attempts. "
                     "Try again later or reduce --users.") from exc
-            await asyncio.sleep(delay)
+            await asyncio.sleep(delay + random.uniform(0, delay * 0.5))
     raise AssertionError("unreachable")
 
 
