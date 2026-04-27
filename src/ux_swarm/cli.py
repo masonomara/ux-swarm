@@ -3,6 +3,15 @@ import click
 # TODO: this file and/or lone SmartGroup may be renamed or merged elsewhere as the CLI grows
 
 
+class CliError(click.ClickException):
+    """ClickException styled with red text and trailing whitespace."""
+
+    def show(self, file=None) -> None:
+        click.echo(click.style(f"Error: {self.message}", fg="red"))
+        click.echo()
+        click.echo()
+
+
 class SmartGroup(click.Group):
     """Routes bare URLs/image paths to `run` without requiring 'run' explicitly."""
 

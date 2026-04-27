@@ -7,6 +7,7 @@ from typing import cast
 
 import click
 import litellm
+from ux_swarm.cli import CliError
 from litellm import ModelResponse, acompletion, completion_cost
 from litellm.types.utils import Usage
 from litellm.exceptions import RateLimitError
@@ -68,7 +69,7 @@ async def _call_with_retry(model: str, messages: list[dict]) -> ModelResponse:
                 ))
         except RateLimitError as exc:
             if delay is None:
-                raise click.ClickException(
+                raise CliError(
                     f"Rate limited after {len(_RETRY_DELAYS) + 1} attempts. "
                     "Try again later or reduce --users.") from exc
             await asyncio.sleep(delay + random.uniform(0, delay * 0.5))

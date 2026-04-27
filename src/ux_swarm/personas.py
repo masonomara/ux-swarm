@@ -3,6 +3,7 @@ from pathlib import Path
 
 import click
 
+from ux_swarm.cli import CliError
 from ux_swarm.config import LOCAL_DIR
 from ux_swarm.models import UserType
 
@@ -35,7 +36,7 @@ def load_users() -> list[UserType]:
         users = [UserType.model_validate(entry) for entry in raw]
         return users if users else list(DEFAULT_USERS)
     except Exception as exc:
-        raise click.ClickException(f"users.json is invalid: {exc}") from exc
+        raise CliError(f"users.json is invalid: {exc}") from exc
 
 
 def distribute_users(users: list[UserType], n: int) -> list[UserType]:

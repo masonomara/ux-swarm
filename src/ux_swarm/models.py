@@ -67,6 +67,6 @@ class SwarmResult(BaseModel):
     completion_rate: float
     margin_of_error: float  # 1.96 * sqrt(p*(1-p)/n)
     user_breakdown: dict[str, float]  # label → completion rate
-    friction_points: list[str]  # raw from all agents; not deduplicated
+    friction_points: list[str]  # canonical phrases; semantically equivalent points share the same string
     total_cost: float
     individual_results: list[AgentResult]

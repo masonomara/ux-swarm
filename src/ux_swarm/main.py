@@ -12,7 +12,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 
-from ux_swarm.cli import SmartGroup
+from ux_swarm.cli import CliError, SmartGroup
 from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, LOCAL_DIR, PROVIDERS, playwright_state, load_config, run_config_wizard
 from ux_swarm.menu import select
 from ux_swarm.models import AgentResult, SwarmResult
@@ -148,20 +148,42 @@ def _print_swarm_result(result: SwarmResult,
 
     if len(result.user_breakdown) > 1:
         _console.print()
+        label_total: dict[str, int] = {}
+        label_done: dict[str, int] = {}
+        for r in result.individual_results:
+            label_total[r.user_type] = label_total.get(r.user_type, 0) + 1
+            if r.completed:
+                label_done[r.user_type] = label_done.get(r.user_type, 0) + 1
+        col = max(len(l) for l in result.user_breakdown)
         for label, rate in result.user_breakdown.items():
-            _console.print(f"  {label:<20}  {rate:.0%}", highlight=False)
+            total = label_total.get(label, 0)
+            done = label_done.get(label, 0)
+            pct = f"{rate:.0%}"
+            _console.print(
+                f"  {label:<{col}}  {pct} [dim]({done}/{total} users)[/]",
+                highlight=False,
+            )
 
     if result.friction_points:
-        top = Counter(fp for fp in result.friction_points if fp).most_common(5)
+        total = result.users
+        agent_mentions: Counter[str] = Counter()
+        for r in result.individual_results:
+            for fp in set(fp for fp in r.friction_points if fp):
+                agent_mentions[fp] += 1
+        top = agent_mentions.most_common(5)
         _console.print()
         _console.print("Pain points:", highlight=False)
         _console.print()
         for point, count in top:
-            prefix = f"  {count}x "
-            max_point = _console.width - len(prefix) - 1
-            display = point if len(point) <= max_point else point[:max_point -
-                                                                  1] + "…"
-            _console.print(f"{prefix}{display}", highlight=False)
+            pct = f"{count / total:.0%}"
+            fraction = f"({count}/{total} users)"
+            suffix_len = 2 + len(pct) + 1 + len(fraction)
+            max_point = _console.width - 2 - suffix_len - 1
+            display = point if len(point) <= max_point else point[:max_point - 1] + "…"
+            _console.print(
+                f"  {display}  {pct} [dim]{fraction}[/]",
+                highlight=False,
+            )
 
     _console.print()
     _console.print("---", highlight=False)
@@ -196,12 +218,12 @@ def _print_swarm_result(result: SwarmResult,
 def run(ctx, target, task, users, max_steps, viewport, verbose):
     """Run a swarm of simulated users against a URL or screenshot image."""
     if target.startswith("http://") or target.startswith("https://"):
-        raise click.ClickException(
+        raise CliError(
             "URL targets require browser mode, which is not yet available. "
             "Pass a screenshot image path instead.")
 
     if not Path(target).exists():
-        raise click.ClickException(f"Image not found: {target}")
+        raise CliError(f"Image not found: {target}")
 
     config = load_config()
     model_full = config.get("model", "")
@@ -209,10 +231,9 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
     provider = config.get("provider", "")
 
     if not model_full:
-        raise click.ClickException(
-            "No model configured — run `swarm config` to set one.")
+        raise CliError("No model configured — run `swarm config` to set one.")
     if not api_key:
-        raise click.ClickException(
+        raise CliError(
             "No API key configured — run `swarm config` to set one.")
 
     _inject_api_key(provider, api_key)
@@ -254,7 +275,8 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
 
         lines.append(
             Text.from_markup(
-                "[dim]run `swarm expand` to see full swarm details[/]"))
+                "[dim]run `swarm expand` to see full swarm details when run is complete[/]"
+            ))
         lines.append(Text(""))
         lines.append(Text(""))
         return Group(spinner, *lines)
@@ -292,7 +314,7 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
     except Exception as exc:
         if verbose:
             raise
-        raise click.ClickException(str(exc)) from exc
+        raise CliError(str(exc)) from exc
 
     LOCAL_DIR.mkdir(parents=True, exist_ok=True)
     try:
@@ -352,8 +374,7 @@ def results(n):
     try:
         entries = json.loads(RESULTS_JSON.read_text())
     except (OSError, json.JSONDecodeError) as exc:
-        raise click.ClickException(
-            f"Could not read results.json: {exc}") from exc
+        raise CliError(f"Could not read results.json: {exc}") from exc
 
     if not entries:
         _console.print("[dim]No results yet.[/]")
@@ -393,8 +414,7 @@ def expand():
     try:
         entries = json.loads(RESULTS_JSON.read_text())
     except (OSError, json.JSONDecodeError) as exc:
-        raise click.ClickException(
-            f"Could not read results.json: {exc}") from exc
+        raise CliError(f"Could not read results.json: {exc}") from exc
 
     if not entries:
         _console.print("[dim]No results yet.[/]")

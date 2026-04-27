@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 from collections.abc import Callable
 from datetime import datetime, timezone
+from typing import cast
 
 import click
+from litellm import ModelResponse, acompletion, completion_cost
 
 from ux_swarm.agent import run_screenshot_agent
+from ux_swarm.cli import CliError
 from ux_swarm.models import AgentResult, SwarmResult, UserType
 from ux_swarm.personas import distribute_users
 
@@ -19,7 +23,8 @@ async def run_screenshot_swarm(
     num_agents: int,
     model: str,
     max_concurrent: int,
-    on_agent_done: Callable[[int, int, AgentResult | None], None] | None = None,
+    on_agent_done: Callable[[int, int, AgentResult | None], None]
+    | None = None,
 ) -> SwarmResult:
     """Run N concurrent screenshot agents and return aggregated results."""
     assigned = distribute_users(users, num_agents)
@@ -72,7 +77,63 @@ async def run_screenshot_swarm(
             if idx < max_concurrent:
                 await asyncio.sleep(0.3)
 
-    return _aggregate(results, target, task, model, num_agents)
+    raw_friction = [fp for r in results for fp in r.friction_points]
+    consolidated_friction, consolidation_cost = await _consolidate_friction_points(
+        raw_friction, model)
+    return _aggregate(results, target, task, model, num_agents,
+                      consolidated_friction, consolidation_cost)
+
+
+async def _consolidate_friction_points(raw: list[str],
+                                       model: str) -> tuple[list[str], float]:
+    """Cluster semantically similar friction points into canonical phrases via a single LLM call."""
+    if not raw:
+        return raw, 0.0
+
+    system = (
+        "You are a UX research analyst consolidating friction point observations from multiple "
+        "synthetic users who tested the same UI.\n\n"
+        "Your goal is aggressive deduplication. Cluster observations that describe the same root "
+        "usability problem into one canonical phrase — even if the wording, punctuation, or emphasis "
+        "differs. When in doubt, merge rather than split. Ignore punctuation differences (dashes, "
+        "apostrophes, capitalization) entirely.\n\n"
+        "The canonical phrase should be concise (≤10 words), specific, and written in the same tone "
+        "as the inputs. Choose the clearest phrasing from among the cluster.\n\n"
+        "Return a JSON object with a single key 'canonical' whose value is an array of exactly the "
+        "same length as the input array. Each element is the canonical phrase for the corresponding "
+        "input. Observations that describe the same problem MUST have byte-for-byte identical "
+        "canonical strings.\n\n"
+        "Return ONLY valid JSON. No markdown, no explanation.")
+    messages = [
+        {
+            "role": "system",
+            "content": system
+        },
+        {
+            "role": "user",
+            "content": json.dumps(raw)
+        },
+    ]
+    try:
+        response = cast(
+            ModelResponse, await acompletion(
+                model=model,
+                messages=messages,
+                max_tokens=2048,
+                response_format={"type": "json_object"},
+            ))
+        data = json.loads(response.choices[0].message.content or "")
+        canonical = data.get("canonical", [])
+        if isinstance(canonical, list) and len(canonical) == len(raw):
+            try:
+                cost = completion_cost(completion_response=response,
+                                       model=model)
+            except Exception:
+                cost = 0.0
+            return [str(c) for c in canonical], cost
+    except Exception:
+        pass
+    return raw, 0.0
 
 
 def _aggregate(
@@ -81,12 +142,14 @@ def _aggregate(
     task: str,
     model: str,
     num_agents: int,
+    friction_points: list[str] | None = None,
+    extra_cost: float = 0.0,
 ) -> SwarmResult:
     """Aggregate individual agent results into a SwarmResult."""
     n = len(results)
 
     if n == 0:
-        raise click.ClickException(
+        raise CliError(
             f"All {num_agents} agents failed. Check your API key and model configuration."
         )
 
@@ -102,8 +165,9 @@ def _aggregate(
         for label, outcomes in by_label.items()
     }
 
-    friction_points = [fp for r in results for fp in r.friction_points]
-    total_cost = sum(r.cost for r in results)
+    if friction_points is None:
+        friction_points = [fp for r in results for fp in r.friction_points]
+    total_cost = sum(r.cost for r in results) + extra_cost
     model_id = model.split("/", 1)[-1] if "/" in model else model
 
     return SwarmResult(
