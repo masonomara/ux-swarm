@@ -323,7 +323,6 @@ async def run_screenshot_swarm(
     users: list[UserType],
     num_agents: int,
     model: str,
-    api_key: str,
     max_concurrent: int,
     on_agent_done: Callable[[int, int], None] | None = None,
 ) -> SwarmResult:
@@ -539,7 +538,6 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
                     users=user_types,
                     num_agents=num_agents,
                     model=model_full,
-                    api_key=api_key,
                     max_concurrent=max_concurrent,
                     on_agent_done=on_done,
                 )
@@ -771,31 +769,31 @@ RUN_DEFAULTS: dict[str, int | float] = {
 
 ### Phase 3 — `src/ux_swarm/swarm.py` (new file)
 
-- [ ] Create `src/ux_swarm/swarm.py`
-- [ ] Add imports: `from __future__ import annotations`, `asyncio`, `math`, `click`, `Callable` from `collections.abc`, `datetime`/`timezone` from `datetime`
-- [ ] Add imports from project: `run_screenshot_agent` from `ux_swarm.agent`; `AgentResult`, `SwarmResult`, `UserType` from `ux_swarm.models`; `distribute_users` from `ux_swarm.personas`
-- [ ] Implement `run_screenshot_swarm(target, task, users, num_agents, model, api_key, max_concurrent, on_agent_done=None) -> SwarmResult`:
-  - [ ] Call `distribute_users(users, num_agents)` to get `assigned`
-  - [ ] Create `semaphore = asyncio.Semaphore(max_concurrent)`
-  - [ ] Declare `results: list[AgentResult] = []` and `completed_count = 0`
-  - [ ] Define `async def _run_agent(idx, user_type)` inner function:
-    - [ ] `async with semaphore:` wrap the `await run_screenshot_agent(...)` call
-    - [ ] Construct `AgentResult` from decision fields + token counts + cost
-    - [ ] `results.append(result)`
-    - [ ] `except asyncio.CancelledError: raise`
-    - [ ] `except Exception: pass`
-    - [ ] `finally:` increment `completed_count`; call `on_agent_done(completed_count, num_agents)` if set
-  - [ ] `async with asyncio.TaskGroup() as tg:` — `tg.create_task(_run_agent(idx, user_type))` for each assigned slot
-  - [ ] Return `_aggregate(results, target, task, model, num_agents)`
-- [ ] Implement `_aggregate(results, target, task, model, num_agents) -> SwarmResult`:
-  - [ ] Raise `ClickException` if `len(results) == 0`
-  - [ ] `completion_rate = sum(1 for r in results if r.completed) / n`
-  - [ ] `moe = 1.96 * math.sqrt(completion_rate * (1 - completion_rate) / n) if n > 1 else 0.0`
-  - [ ] Build `user_breakdown`: group by `r.user_type`, compute per-label completion rate
-  - [ ] Flatten `friction_points` from all results
-  - [ ] Sum `total_cost`
-  - [ ] Strip provider prefix from `model` for display: `model.split("/", 1)[-1]`
-  - [ ] Construct and return `SwarmResult` with `timestamp=datetime.now(timezone.utc).isoformat()`, `mode="screenshot"`, all computed fields, `individual_results=results`
+- [x] Create `src/ux_swarm/swarm.py`
+- [x] Add imports: `from __future__ import annotations`, `asyncio`, `math`, `click`, `Callable` from `collections.abc`, `datetime`/`timezone` from `datetime`
+- [x] Add imports from project: `run_screenshot_agent` from `ux_swarm.agent`; `AgentResult`, `SwarmResult`, `UserType` from `ux_swarm.models`; `distribute_users` from `ux_swarm.personas`
+- [x] Implement `run_screenshot_swarm(target, task, users, num_agents, model, max_concurrent, on_agent_done=None) -> SwarmResult`:
+  - [x] Call `distribute_users(users, num_agents)` to get `assigned`
+  - [x] Create `semaphore = asyncio.Semaphore(max_concurrent)`
+  - [x] Declare `results: list[AgentResult] = []` and `completed_count = 0`
+  - [x] Define `async def _run_agent(idx, user_type)` inner function:
+    - [x] `async with semaphore:` wrap the `await run_screenshot_agent(...)` call
+    - [x] Construct `AgentResult` from decision fields + token counts + cost
+    - [x] `results.append(result)`
+    - [x] `except asyncio.CancelledError: raise`
+    - [x] `except Exception: pass`
+    - [x] `finally:` increment `completed_count`; call `on_agent_done(completed_count, num_agents)` if set
+  - [x] `async with asyncio.TaskGroup() as tg:` — `tg.create_task(_run_agent(idx, user_type))` for each assigned slot
+  - [x] Return `_aggregate(results, target, task, model, num_agents)`
+- [x] Implement `_aggregate(results, target, task, model, num_agents) -> SwarmResult`:
+  - [x] Raise `ClickException` if `len(results) == 0`
+  - [x] `completion_rate = sum(1 for r in results if r.completed) / n`
+  - [x] `moe = 1.96 * math.sqrt(completion_rate * (1 - completion_rate) / n) if n > 1 else 0.0`
+  - [x] Build `user_breakdown`: group by `r.user_type`, compute per-label completion rate
+  - [x] Flatten `friction_points` from all results
+  - [x] Sum `total_cost`
+  - [x] Strip provider prefix from `model` for display: `model.split("/", 1)[-1]`
+  - [x] Construct and return `SwarmResult` with `timestamp=datetime.now(timezone.utc).isoformat()`, `mode="screenshot"`, all computed fields, `individual_results=results`
 
 ---
 
