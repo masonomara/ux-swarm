@@ -183,16 +183,14 @@ Started with setting up the user types in `personas.py`, removed the default har
 
 Then, I worked on removing the custom request formatters for LiteLLM in `agents.py`. We are doing a single uniform task over multiple providers, no need for a channel adapter for different models when there's a thrid-party service that can manage them all. This makes edge cases such as Rate Limit errors all uniformly handled, normalized. Way less maintence unless LiteLLm itself breaks, it is now a single point of failue. Lets make sure that LiteLLM stays siloed.
 
-**Swarm coordinator (`swarm.py`)**
+In `swarm.py`, TaskGroup makes sure all N agents are in flight, then we wait for all of them to complete before moving on to the next step. We have a silent agent drop setup so if a single agent throws an error like a network blip or malformed response, we catch it and skip appending a result for that agent. We don't crash the whole run. We do have an `_aggregate` function in case every single agent fails, for a clean error message.
 
-- `asyncio.TaskGroup` (Python 3.11+) for structured concurrency — exceptions propagate cleanly, cancelled tasks cancel the group
-- `asyncio.Semaphore` caps concurrent API calls — default 5 for screenshot mode, browser will be lower
-- Silent agent drop on failure: if one agent throws, it's excluded from results rather than crashing the whole run — `_aggregate` handles the all-failed edge case
-- `on_agent_done` callback keeps progress rendering in `main.py`, not inside the coordinator — swarm stays output-agnostic
+We had to add `asyncio.Semaphore` to cap concurrent API calls so all agents wouldn't send their requests at the same moment and saturate the rate limit. The semaphore makes sure only 5 agents can be working at once. We also added random jitter to retry delays — without it, all agents that hit a rate limit would wait the same fixed delay and retry simultaneously, immediately hitting the limit again. This is called the thundering herd problem, jitter staggers them so they don't pile up.
 
+The swarm coordinator in `swarm.py` is completely isolated from the terminal. It accepts an optional `on_agent_done(done, total)` callback. `main.py` passes in the function that updates the live display. This keeps `swarm.py` output-agnostic — it could run in a web server, a test, or a CI pipeline without modification.
 
-Created teh ssawrm coordinator, witha. few key decisions like bringing in `asyncio.taskGroup` and `asyncio.Semaphore`
+When there was one agent, showing its individual comment, target element, and reasoning made sense. With 20 agents, we want a single number that tells you how the flow performed. We switched to completion rate, margin of error, and the top friction points ranked by frequency. The completion rate is a proportion (X out of N agents completed the task). `1.96 * sqrt(p*(1-p)/n)` gives the 95% confidence interval for a proportion. The 1.96 is the z-score for 95%. This means if you see "75% ±9%", the true rate is likely between 66% and 84%.
 
-Shifted teh swarm output froma. per-agent display we itianlly set up for the single agent into an aggregated results and popular friction points, plus a progress state
+Each agent reports a list of friction points as free text. We mgiht look into consolidating this further at some pont, but for now `Counter` counts how many times each unique string appears and `.most_common(5)` returns the top five.
 
-regarding result storage, we moved the results from intiially timestamped files like `.swarm/reports/{timestamp}_{stem}.json` to append-only array in `.swarm/results.json` for much simpelr reads and exports. makes teh `swarm results` function easier as well
+We are storign the results in an append-only array in `results.json` - an array of all past runs - instead of individual timestamped files. A single json file means reading everything is one `json.loads` call. Simple to implement, simple to read, simple to export.
