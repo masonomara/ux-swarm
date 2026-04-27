@@ -1,9 +1,18 @@
+import asyncio
 import base64
 import json
-import urllib.request
 from pathlib import Path
+from typing import cast
+
+import click
+import litellm
+from litellm import ModelResponse, acompletion, completion_cost
+from litellm.types.utils import Usage
+from litellm.exceptions import RateLimitError
 
 from ux_swarm.models import ScreenshotDecision, UserType
+
+litellm.suppress_debug_info = True
 
 _MIME_TYPES = {
     ".png": "image/png",
@@ -12,6 +21,8 @@ _MIME_TYPES = {
     ".webp": "image/webp",
     ".gif": "image/gif",
 }
+
+_RETRY_DELAYS = (60, 120, 240)
 
 
 def _media_type(path: Path) -> str:
@@ -33,7 +44,7 @@ def _build_system_prompt(user_type: UserType) -> str:
     """Build the system prompt for a screenshot agent: persona, UX instruction, and JSON schema."""
     schema = json.dumps(ScreenshotDecision.model_json_schema(), indent=2)
     return (
-        f"You are a synthetic user in a UX test.\n\n"
+        "You are a synthetic user in a UX test.\n\n"
         f"You are playing the role of: {user_type.label}\n"
         f"{user_type.description}\n\n"
         "Important: if you feel confused or uncertain about what to do, that confusion is the finding — record it in friction_observed.\n\n"
@@ -43,167 +54,69 @@ def _build_system_prompt(user_type: UserType) -> str:
     )
 
 
-_OPENAI_COMPAT_ENDPOINTS = {
-    "openai":
-    "https://api.openai.com/v1/chat/completions",
-    "gemini":
-    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-}
+async def _call_with_retry(model: str, messages: list) -> ModelResponse:
+    """Call acompletion with exponential backoff on rate limits; raises ClickException after all retries exhausted."""
+    for delay in (*_RETRY_DELAYS, None):
+        try:
+            return cast(
+                ModelResponse, await acompletion(
+                    model=model,
+                    messages=messages,
+                    max_tokens=1024,
+                    response_format={"type": "json_object"},
+                ))
+        except RateLimitError as exc:
+            if delay is None:
+                raise click.ClickException(
+                    f"Rate limited after {len(_RETRY_DELAYS) + 1} attempts. "
+                    "Try again later or reduce --users.") from exc
+            await asyncio.sleep(delay)
+    raise AssertionError("unreachable")
 
 
-def _call_anthropic(
-    model_id: str,
-    api_key: str,
-    system: str,
-    image_data: str,
-    media_type: str,
-    user_prompt: str,
-) -> tuple[str, int, int]:
-    """POST a vision request to the Anthropic messages API. Returns (response_text, input_tokens, output_tokens)."""
-    body = json.dumps({
-        "model":
-        model_id,
-        "max_tokens":
-        1024,
-        "system":
-        system,
-        "messages": [{
-            "role":
-            "user",
-            "content": [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": media_type,
-                        "data": image_data,
-                    },
-                },
-                {
-                    "type": "text",
-                    "text": user_prompt
-                },
-            ],
-        }],
-    }).encode()
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=body,
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(req) as resp:
-        data = json.loads(resp.read())
-    return (
-        data["content"][0]["text"],
-        data["usage"]["input_tokens"],
-        data["usage"]["output_tokens"],
-    )
-
-
-def _call_openai_compat(
-    endpoint: str,
-    model_id: str,
-    api_key: str,
-    system: str,
-    image_data: str,
-    media_type: str,
-    user_prompt: str,
-) -> tuple[str, int, int]:
-    """POST a vision request to an OpenAI-compatible endpoint. Returns (response_text, input_tokens, output_tokens)."""
-    body = json.dumps({
-        "model":
-        model_id,
-        "max_tokens":
-        1024,
-        "response_format": {
-            "type": "json_object"
-        },
-        "messages": [
-            {
-                "role": "system",
-                "content": system
-            },
-            {
-                "role":
-                "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{media_type};base64,{image_data}"
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": user_prompt
-                    },
-                ],
-            },
-        ],
-    }).encode()
-    req = urllib.request.Request(
-        endpoint,
-        data=body,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(req) as resp:
-        data = json.loads(resp.read())
-    return (
-        data["choices"][0]["message"]["content"],
-        data["usage"]["prompt_tokens"],
-        data["usage"]["completion_tokens"],
-    )
-
-
-def _call_llm(
-    provider: str,
-    model_id: str,
-    api_key: str,
-    system: str,
-    image_data: str,
-    media_type: str,
-    user_prompt: str,
-) -> tuple[str, int, int]:
-    """Route a vision LLM call to the correct provider and return (response_text, input_tokens, output_tokens)."""
-    if provider == "anthropic":
-        return _call_anthropic(model_id, api_key, system, image_data,
-                               media_type, user_prompt)
-    if provider in _OPENAI_COMPAT_ENDPOINTS:
-        return _call_openai_compat(
-            _OPENAI_COMPAT_ENDPOINTS[provider],
-            model_id,
-            api_key,
-            system,
-            image_data,
-            media_type,
-            user_prompt,
-        )
-    raise ValueError(
-        f"Unknown provider: {provider!r} — run `swarm config` to reconfigure")
-
-
-def run_screenshot_agent(
+async def run_screenshot_agent(
     target: str,
     task: str,
     user_type: UserType,
-    provider: str,
-    model_id: str,
-    api_key: str,
-) -> tuple[ScreenshotDecision, int, int]:
-    """Public entry point for a single screenshot agent. Returns (ScreenshotDecision, input_tokens, output_tokens)."""
+    model: str,
+) -> tuple[ScreenshotDecision, int, int, float]:
+    """Public entry point for a single screenshot agent. Returns (ScreenshotDecision, input_tokens, output_tokens, cost)."""
     image_data, media_type = _load_image(target)
     system = _build_system_prompt(user_type)
-    user_prompt = f"Task: {task}"
-    raw, in_tok, out_tok = _call_llm(provider, model_id, api_key, system,
-                                     image_data, media_type, user_prompt)
-    decision = ScreenshotDecision.model_validate_json(raw)
-    return decision, in_tok, out_tok
+
+    messages = [
+        {"role": "system", "content": system},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"Task: {task}"},
+                {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image_data}"}},
+            ],
+        },
+    ]
+
+    response = await _call_with_retry(model, messages)
+    raw = response.choices[0].message.content or ""
+    usage = cast(Usage, getattr(response, "usage"))
+    in_tok = usage.prompt_tokens
+    out_tok = usage.completion_tokens
+
+    try:
+        cost = completion_cost(completion_response=response, model=model)
+    except Exception:
+        cost = 0.0
+
+    try:
+        decision = ScreenshotDecision.model_validate_json(raw)
+    except Exception:
+        decision = ScreenshotDecision(
+            target_element="unknown",
+            reasoning=raw[:500],
+            comment="Agent response was not valid JSON.",
+            friction_observed=["Agent response was not valid JSON"],
+            completed=False,
+            abandoned=True,
+            abandonment_reason="parse failure",
+        )
+
+    return decision, in_tok, out_tok, cost

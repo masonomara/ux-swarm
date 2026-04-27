@@ -180,3 +180,5 @@ Then I wrote separate request formatters for Anthropic and OpenAI/Gemini to tran
 ## Multi Agent Setup
 
 Started with setting up the user types in `personas.py`, removed the default hardcoded persona we had wired up in main. `personas.py` also handles weight distribution and reading the `.swarm/users.json` file. It exists as its own file to separate everything "user types" related.
+
+Then, I worked on removing the custom request formatters for LiteLLM in `agents.py`. We are doing a single uniform task over multiple providers, no need for a channel adapter for different models when there's a thrid-party service that can manage them all. This makes edge cases such as Rate Limit errors all uniformly handled, normalized. Way less maintence unless LiteLLm itself breaks, it is now a single point of failue. Lets make sure that LiteLLM stays siloed.

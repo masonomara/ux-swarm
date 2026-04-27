@@ -197,12 +197,11 @@ async def run_screenshot_agent(
     task: str,
     user_type: UserType,
     model: str,          # full model string from config, e.g. "anthropic/claude-sonnet-4-20250514"
-    api_key: str,        # for error context only — LiteLLM reads from os.environ
 ) -> tuple[ScreenshotDecision, int, int, float]:
     """Returns (decision, input_tokens, output_tokens, cost)."""
 ```
 
-Note: `model` is the full `"provider/model-id"` string from config — LiteLLM accepts this format directly. The api_key parameter is kept for error messages but LiteLLM reads the actual key from the environment variable set in `main.py`.
+Note: `model` is the full `"provider/model-id"` string from config — LiteLLM accepts this format directly. No `api_key` parameter — LiteLLM reads the key from the environment variable injected by `main.py` before `asyncio.run()`.
 
 Implementation:
 
@@ -357,7 +356,6 @@ async def run_screenshot_swarm(...) -> SwarmResult:
                     task=task,
                     user_type=user_type,
                     model=model,
-                    api_key=api_key,
                 )
             result = AgentResult(
                 agent_index=idx,
@@ -740,34 +738,34 @@ RUN_DEFAULTS: dict[str, int | float] = {
 
 ### Phase 2 — `src/ux_swarm/agent.py` (async refactor)
 
-- [ ] Add `litellm` to `pyproject.toml` dependencies: run `uv add litellm`
-- [ ] **Imports** — update the import block:
-  - [ ] Add `import asyncio`
-  - [ ] Add `import litellm` and set `litellm.suppress_debug_info = True` at module level
-  - [ ] Add `from litellm import acompletion`
-  - [ ] Add `from litellm.exceptions import RateLimitError`
-  - [ ] Add `from litellm.utils import completion_cost`
-  - [ ] Remove `import urllib.request`
-- [ ] **Delete** `_OPENAI_COMPAT_ENDPOINTS` dict
-- [ ] **Delete** `_call_anthropic` function
-- [ ] **Delete** `_call_openai_compat` function
-- [ ] **Delete** `_call_llm` function
-- [ ] **Add** `_RETRY_DELAYS = (60, 120, 240)` constant
-- [ ] **Rewrite** `run_screenshot_agent` as `async def`:
-  - [ ] Update signature: remove `provider` and `model_id` params, add `model: str` (full string); update return type to `tuple[ScreenshotDecision, int, int, float]`
-  - [ ] Call `_load_image(target)` — unchanged
-  - [ ] Call `_build_system_prompt(user_type)` — unchanged
-  - [ ] Build `messages` list in OpenAI multimodal format (system role + user role with text + image_url)
-  - [ ] Implement retry loop over `(*_RETRY_DELAYS, None)`:
-    - [ ] `await acompletion(model=model, messages=messages, max_tokens=1024, response_format={"type": "json_object"})`
-    - [ ] On `RateLimitError`: if `delay is None` raise `ClickException`; else `await asyncio.sleep(delay)`
-    - [ ] Break out of loop on success
-  - [ ] Extract `raw = response.choices[0].message.content or ""`
-  - [ ] Extract `in_tok = response.usage.prompt_tokens`
-  - [ ] Extract `out_tok = response.usage.completion_tokens`
-  - [ ] Call `completion_cost(completion_response=response, model=model)` inside `try/except`, fallback `0.0`
-  - [ ] Try `ScreenshotDecision.model_validate_json(raw)`; on failure construct synthetic decision with `completed=False`, `abandoned=True`, `abandonment_reason="parse failure"`, friction note
-  - [ ] Return `(decision, in_tok, out_tok, cost)`
+- [x] Add `litellm` to `pyproject.toml` dependencies: run `uv add litellm`
+- [x] **Imports** — update the import block:
+  - [x] Add `import asyncio`
+  - [x] Add `import litellm` and set `litellm.suppress_debug_info = True` at module level
+  - [x] Add `from litellm import acompletion`
+  - [x] Add `from litellm.exceptions import RateLimitError`
+  - [x] Add `from litellm.utils import completion_cost`
+  - [x] Remove `import urllib.request`
+- [x] **Delete** `_OPENAI_COMPAT_ENDPOINTS` dict
+- [x] **Delete** `_call_anthropic` function
+- [x] **Delete** `_call_openai_compat` function
+- [x] **Delete** `_call_llm` function
+- [x] **Add** `_RETRY_DELAYS = (60, 120, 240)` constant
+- [x] **Rewrite** `run_screenshot_agent` as `async def`:
+  - [x] Update signature: remove `provider`, `model_id`, and `api_key` params, add `model: str` (full string); update return type to `tuple[ScreenshotDecision, int, int, float]`
+  - [x] Call `_load_image(target)` — unchanged
+  - [x] Call `_build_system_prompt(user_type)` — unchanged
+  - [x] Build `messages` list in OpenAI multimodal format (system role + user role with text + image_url)
+  - [x] Implement retry loop over `(*_RETRY_DELAYS, None)`:
+    - [x] `await acompletion(model=model, messages=messages, max_tokens=1024, response_format={"type": "json_object"})`
+    - [x] On `RateLimitError`: if `delay is None` raise `ClickException`; else `await asyncio.sleep(delay)`
+    - [x] Break out of loop on success
+  - [x] Extract `raw = response.choices[0].message.content or ""`
+  - [x] Extract `in_tok = response.usage.prompt_tokens`
+  - [x] Extract `out_tok = response.usage.completion_tokens`
+  - [x] Call `completion_cost(completion_response=response, model=model)` inside `try/except`, fallback `0.0`
+  - [x] Try `ScreenshotDecision.model_validate_json(raw)`; on failure construct synthetic decision with `completed=False`, `abandoned=True`, `abandonment_reason="parse failure"`, friction note
+  - [x] Return `(decision, in_tok, out_tok, cost)`
 
 ---
 
