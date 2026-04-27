@@ -1519,5 +1519,216 @@
         "cost": 0.032
       }
     ]
+  },
+  {
+    "timestamp": "2026-04-27T16:10:05.553974+00:00",
+    "mode": "screenshot",
+    "target": "screenshot.png",
+    "task": "click log in",
+    "model": "claude-opus-4-7",
+    "users": 10,
+    "completion_rate": 0.5,
+    "margin_of_error": 0.3099032106965012,
+    "user_breakdown": {
+      "Default User": 1.0,
+      "Freakout": 0.0
+    },
+    "friction_points": [
+      "Task says 'log in' but the button is labeled 'Sign in' - minor mismatch but close enough",
+      "Task said 'log in' but the button is labeled 'Sign in' \u2014 minor mismatch but close enough",
+      "Task says 'log in' but the button is labeled 'Sign in' \u2014 minor wording mismatch",
+      "Task says 'log in' but the link is labeled 'Sign in' - minor wording mismatch",
+      "No 'Log in' label exists \u2014 only 'Sign in', requiring me to interpret them as equivalent",
+      "No 'Log in' button visible \u2014 only 'Sign in' exists",
+      "Terminology mismatch between task instruction and UI label",
+      "No 'log in' button visible \u2014 only 'Sign in'",
+      "Inconsistent terminology between task instruction and UI label",
+      "User cannot find the exact element they were told to click",
+      "No 'Log in' button visible \u2014 only 'Sign in'",
+      "Task terminology doesn't match UI labels",
+      "No 'Log in' button visible \u2014 only 'Sign in'",
+      "Inconsistent terminology between task and UI causes immediate confusion",
+      "No 'Log in' button visible - only 'Sign in'",
+      "Inconsistent terminology between task instruction and UI label"
+    ],
+    "total_cost": 0.31567500000000004,
+    "individual_results": [
+      {
+        "agent_index": 4,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Task says 'log in' but the button is labeled 'Sign in' - minor mismatch but close enough"
+        ],
+        "comment": "Clicking Sign in since there's no 'Log in' but Sign in is the equivalent.",
+        "target_element": "Sign in button at bottom left",
+        "reasoning": "Task says click log in. I see 'Sign in' at the bottom left, which is the closest match.",
+        "steps_taken": 1,
+        "input_tokens": 5400,
+        "output_tokens": 161,
+        "cost": 0.031025000000000004
+      },
+      {
+        "agent_index": 3,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Task said 'log in' but the button is labeled 'Sign in' \u2014 minor mismatch but close enough"
+        ],
+        "comment": "Clicking Sign in since there's no 'Log in' label visible.",
+        "target_element": "Sign in link at bottom left",
+        "reasoning": "Task says click log in. I see 'Sign in' at the bottom left, which is the closest match.",
+        "steps_taken": 1,
+        "input_tokens": 5400,
+        "output_tokens": 153,
+        "cost": 0.030825000000000005
+      },
+      {
+        "agent_index": 0,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Task says 'log in' but the button is labeled 'Sign in' \u2014 minor wording mismatch"
+        ],
+        "comment": "Clicking Sign in since there's no 'Log in' but Sign in seems equivalent.",
+        "target_element": "Sign in button at bottom left",
+        "reasoning": "Task says click log in. I see 'Sign in' at the bottom left, which is the closest match.",
+        "steps_taken": 1,
+        "input_tokens": 5400,
+        "output_tokens": 159,
+        "cost": 0.030975000000000003
+      },
+      {
+        "agent_index": 1,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Task says 'log in' but the link is labeled 'Sign in' - minor wording mismatch"
+        ],
+        "comment": "Clicking Sign in since there's no 'log in' but this seems equivalent.",
+        "target_element": "Sign in link at bottom left",
+        "reasoning": "Task is to click log in. I see 'Sign in' at the bottom left, which is the closest match.",
+        "steps_taken": 1,
+        "input_tokens": 5400,
+        "output_tokens": 156,
+        "cost": 0.030900000000000004
+      },
+      {
+        "agent_index": 2,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "No 'Log in' label exists \u2014 only 'Sign in', requiring me to interpret them as equivalent"
+        ],
+        "comment": "Clicking Sign in since there's no 'Log in' but Sign in seems equivalent.",
+        "target_element": "Sign in button at bottom left",
+        "reasoning": "Task says click log in. I see 'Sign in' at the bottom left, which is the closest match.",
+        "steps_taken": 1,
+        "input_tokens": 5400,
+        "output_tokens": 161,
+        "cost": 0.031025000000000004
+      },
+      {
+        "agent_index": 5,
+        "user_type": "Freakout",
+        "completed": false,
+        "abandoned": true,
+        "abandonment_reason": "No 'Log in' button exists on the page \u2014 only 'Sign in'. Not what was asked for.",
+        "friction_points": [
+          "No 'Log in' button visible \u2014 only 'Sign in' exists",
+          "Terminology mismatch between task instruction and UI label"
+        ],
+        "comment": "I was told to click log in. I don't see a log in button. There's a 'Sign in' but that's not what I was asked to click. I'm out.",
+        "target_element": "none",
+        "reasoning": "The task is to click 'log in' but I only see 'Sign in' at the bottom left. There is no 'Log in' button anywhere on this page.",
+        "steps_taken": 1,
+        "input_tokens": 5260,
+        "output_tokens": 219,
+        "cost": 0.031775
+      },
+      {
+        "agent_index": 6,
+        "user_type": "Freakout",
+        "completed": false,
+        "abandoned": true,
+        "abandonment_reason": "There is no 'log in' button on the screen. Only a 'Sign in' option exists, which is not what the task explicitly asked for.",
+        "friction_points": [
+          "No 'log in' button visible \u2014 only 'Sign in'",
+          "Inconsistent terminology between task instruction and UI label",
+          "User cannot find the exact element they were told to click"
+        ],
+        "comment": "I was told to click 'log in' but there's no 'log in' button anywhere. There's a 'Sign in' button but that's not the same thing. I'm out.",
+        "target_element": "none",
+        "reasoning": "The task says click 'log in' but I only see 'Sign in' at the bottom left. That's not what was asked for. As someone who freaks out when the first thing isn't explicitly what the task asks for, this is a problem.",
+        "steps_taken": 1,
+        "input_tokens": 5260,
+        "output_tokens": 272,
+        "cost": 0.033100000000000004
+      },
+      {
+        "agent_index": 7,
+        "user_type": "Freakout",
+        "completed": false,
+        "abandoned": true,
+        "abandonment_reason": "No 'Log in' button exists on the page. Only a 'Sign in' option is shown, which doesn't match what the task explicitly asked for.",
+        "friction_points": [
+          "No 'Log in' button visible \u2014 only 'Sign in'",
+          "Task terminology doesn't match UI labels"
+        ],
+        "comment": "I was told to click 'log in' but there's no log in button \u2014 just 'Sign in'. That's not the same thing. I'm out.",
+        "target_element": "none",
+        "reasoning": "The task says click 'log in' but I only see 'Sign in' at the bottom left. There is no 'Log in' button anywhere on this screen. This is not what I was told to look for.",
+        "steps_taken": 1,
+        "input_tokens": 5260,
+        "output_tokens": 236,
+        "cost": 0.0322
+      },
+      {
+        "agent_index": 9,
+        "user_type": "Freakout",
+        "completed": false,
+        "abandoned": true,
+        "abandonment_reason": "No explicit 'Log in' option present \u2014 only 'Sign in', which doesn't match the task wording.",
+        "friction_points": [
+          "No 'Log in' button visible \u2014 only 'Sign in'",
+          "Inconsistent terminology between task and UI causes immediate confusion"
+        ],
+        "comment": "There's no 'Log in' button anywhere. It says 'Sign in'. That's not what I was asked to click. I'm out.",
+        "target_element": "none",
+        "reasoning": "Task says click 'log in' but I only see 'Sign in' at the bottom left. That's not the same wording. I was told to find log in explicitly.",
+        "steps_taken": 1,
+        "input_tokens": 5260,
+        "output_tokens": 221,
+        "cost": 0.031825
+      },
+      {
+        "agent_index": 8,
+        "user_type": "Freakout",
+        "completed": false,
+        "abandoned": true,
+        "abandonment_reason": "No 'Log in' button exists on the page. Only a 'Sign in' option is available, which is not what the task explicitly asked for.",
+        "friction_points": [
+          "No 'Log in' button visible - only 'Sign in'",
+          "Inconsistent terminology between task instruction and UI label"
+        ],
+        "comment": "Where is log in?? I see 'Sign in' but not 'Log in'. That's not what I was told to click. I'm out.",
+        "target_element": "none",
+        "reasoning": "The task asks me to click 'Log in' but I only see a 'Sign in' button at the bottom left. There is no 'Log in' button explicitly visible.",
+        "steps_taken": 1,
+        "input_tokens": 5260,
+        "output_tokens": 229,
+        "cost": 0.032025
+      }
+    ]
   }
 ]

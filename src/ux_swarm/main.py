@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import textwrap
 from collections import Counter, deque
 from importlib.metadata import metadata, PackageNotFoundError
 from pathlib import Path
@@ -248,7 +249,7 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
             body_display = body if len(body) <= max_body else body[:max_body -
                                                                    1] + "…"
             lines.append(
-                Text.from_markup(f"[{color}]{label_str}[/]  {body_display}"))
+                Text.from_markup(f"[{color}]{label_str}[/] {body_display}"))
         lines.append(Text(""))
 
         lines.append(
@@ -361,9 +362,25 @@ def results(n):
     if n:
         entries = entries[-n:]
 
+    rows = []
     for entry in entries:
-        _print_swarm_result(SwarmResult.model_validate(entry),
-                            show_header=True)
+        r = SwarmResult.model_validate(entry)
+        rows.append((
+            Path(r.target).name,
+            r.task,
+            f"{r.completion_rate:.0%}",
+            r.timestamp[:10],
+        ))
+
+    col_w = [max(len(row[i]) for row in rows) for i in range(4)]
+
+    _console.print()
+    for filename, task, rate, date in rows:
+        _console.print(
+            f"  {filename.ljust(col_w[0])}  {task.ljust(col_w[1])}  {rate.ljust(col_w[2])}  [dim]{date}[/]",
+            highlight=False,
+        )
+    _console.print()
 
 
 @cli.command()
@@ -392,26 +409,31 @@ def expand():
     _console.print("---", highlight=False)
     _console.print()
 
+    w = _console.width
+    label_counts: Counter[str] = Counter()
     for r in result.individual_results:
-        status = "✓" if r.completed else "✗"
-        _console.print(f"  {status}  {r.user_type}", highlight=False)
-        if r.comment:
-            _console.print(f"      {r.comment}", highlight=False)
-        if r.abandonment_reason:
-            _console.print(f"      [dim]abandoned: {r.abandonment_reason}[/]",
-                           highlight=False)
-        for fp in r.friction_points:
-            _console.print(f"      [dim]· {fp}[/]", highlight=False)
+        label_counts[r.user_type] += 1
+        numbered = f"{r.user_type} {label_counts[r.user_type]}"
+        color = "green" if r.completed else "red"
+        comment = r.comment or ""
+        _console.print(f"[{color}]{numbered}[/] - {comment}", highlight=False)
+        bullets = ([r.abandonment_reason]
+                   if r.abandonment_reason else []) + r.friction_points
+        for bullet in bullets:
+            bullet_lines = textwrap.wrap(bullet, width=w - 6)
+            for i, line in enumerate(bullet_lines):
+                prefix = "[dim]· " if i == 0 else "[dim]  "
+                _console.print(f"{prefix}{line}[/]", highlight=False)
         _console.print()
 
     if result.friction_points:
         _console.print("---", highlight=False)
         _console.print()
-        _console.print("All friction points:", highlight=False)
+        _console.print("All pain points:", highlight=False)
         _console.print()
         for point, count in Counter(fp for fp in result.friction_points
                                     if fp).most_common():
-            _console.print(f"  {point}", highlight=False)
+            _console.print(f"  {count}x {point}", highlight=False)
         _console.print()
 
 
