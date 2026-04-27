@@ -1,19 +1,20 @@
 import asyncio
 import json
 import os
-from collections import Counter
+from collections import Counter, deque
 from importlib.metadata import metadata, PackageNotFoundError
 from pathlib import Path
 
 import click
-from rich.console import Console
+from rich.console import Console, Group
 from rich.live import Live
 from rich.spinner import Spinner
+from rich.text import Text
 
 from ux_swarm.cli import SmartGroup
 from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, LOCAL_DIR, PROVIDERS, playwright_state, load_config, run_config_wizard
 from ux_swarm.menu import select
-from ux_swarm.models import SwarmResult
+from ux_swarm.models import AgentResult, SwarmResult
 from ux_swarm.personas import load_users
 from ux_swarm.swarm import run_screenshot_swarm
 
@@ -128,52 +129,49 @@ RUN_DEFAULTS: dict[str, int] = {
 }
 
 
-def _print_swarm_result(result: SwarmResult) -> None:
-    """Render aggregated swarm results to the terminal between rule dividers."""
-    filename = Path(result.target).name
+def _print_swarm_result(result: SwarmResult,
+                        show_header: bool = False) -> None:
+    """Render aggregated swarm results to the terminal."""
     rate_pct = f"{result.completion_rate:.0%}"
     moe_pct = f"±{result.margin_of_error:.0%}"
 
-    if result.completion_rate >= 0.8:
-        rate_style = "green"
-    elif result.completion_rate >= 0.5:
-        rate_style = "yellow"
-    else:
-        rate_style = "red"
+    if show_header:
+        filename = Path(result.target).name
+        _console.print()
+        _console.print(f"{filename}: {result.task}", highlight=False)
+        _console.print()
+        _console.print("---", highlight=False)
 
-    _console.print()
-    _console.rule(style="dim")
-    _console.print()
-    _console.print(f"  {filename} — \"{result.task}\"", highlight=False)
-    _console.print()
-    _console.print(
-        f"  [{rate_style}][bold]{rate_pct}[/bold][/]  {moe_pct}  ·  {result.users} agents",
-        highlight=False,
-    )
+    _console.print(f"{rate_pct} of agents completed the task:",
+                   highlight=False)
 
     if len(result.user_breakdown) > 1:
         _console.print()
-        _console.print("  User Breakdown", highlight=False)
         for label, rate in result.user_breakdown.items():
-            _console.print(f"  [dim]{label:<20}[/]  {rate:.0%}",
-                           highlight=False)
+            _console.print(f"  {label:<20}  {rate:.0%}", highlight=False)
 
     if result.friction_points:
         top = Counter(fp for fp in result.friction_points if fp).most_common(5)
         _console.print()
-        _console.print("  Friction", highlight=False)
-        for point, _ in top:
-            _console.print(f"  [dim]•[/] {point}", highlight=False)
+        _console.print("Pain points:", highlight=False)
+        _console.print()
+        for point, count in top:
+            prefix = f"  {count}x "
+            max_point = _console.width - len(prefix) - 1
+            display = point if len(point) <= max_point else point[:max_point -
+                                                                  1] + "…"
+            _console.print(f"{prefix}{display}", highlight=False)
 
     _console.print()
-    model_line = result.model
-    if result.total_cost:
-        model_line += f"  ·  ${result.total_cost:.4f}"
-    timestamp = result.timestamp[:16].replace("T", "  ")
-    model_line += f"  ·  {timestamp}  ·  {result.mode}"
-    _console.print(f"  [dim]{model_line}[/]", highlight=False)
+    _console.print("---", highlight=False)
     _console.print()
-    _console.rule(style="dim")
+    _console.print(f"{result.users} agents run ({moe_pct} margin of error)",
+                   highlight=False)
+    _console.print(f"Report saved to [dim]{RESULTS_JSON}[/]", highlight=False)
+    _console.print()
+    if not show_header:
+        _console.print("[dim]run `swarm expand` to see full swarm details[/]",
+                       highlight=False)
     _console.print()
 
 
@@ -223,20 +221,60 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
 
     user_types = load_users()
 
+    filename = Path(target).name
+    _console.print()
+    _console.print(f"{filename}: {task}", highlight=False)
+    _console.print()
+    _console.print("---", highlight=False)
+    _console.print()
+
+    # (numbered_label, completed, body)
+    recent: deque[tuple[str, bool | None, str]] = deque(maxlen=5)
+    label_counts: Counter[str] = Counter()
+
+    def _build_display(done: int, total: int) -> Group:
+        running = min(total - done, max_concurrent)
+        spinner = Spinner(
+            "dots",
+            text=f" {running} agents running ({done}/{total} complete)",
+            style="dim",
+        )
+        lines: list[Text] = [Text("")]
+        pad = max((len(lbl) for lbl, _, _ in recent), default=0) + 2
+        for numbered_label, completed, body in recent:
+            color = "green" if completed else "red"
+            label_str = numbered_label.ljust(pad)
+            max_body = max(_console.width - pad - 4, 10)
+            body_display = body if len(body) <= max_body else body[:max_body -
+                                                                   1] + "…"
+            lines.append(
+                Text.from_markup(f"[{color}]{label_str}[/]  {body_display}"))
+        lines.append(Text(""))
+
+        lines.append(
+            Text.from_markup(
+                "[dim]run `swarm expand` to see full swarm details[/]"))
+        lines.append(Text(""))
+        lines.append(Text(""))
+        return Group(spinner, *lines)
+
     try:
         with Live(
-                Spinner("dots",
-                        text=f"  0 / {num_agents}  agents running",
-                        style="dim"),
+                _build_display(0, num_agents),
                 console=_console,
                 refresh_per_second=10,
+                transient=True,
         ) as live:
 
-            def on_done(done: int, total: int) -> None:
-                live.update(
-                    Spinner("dots",
-                            text=f"  {done} / {total}  agents complete",
-                            style="dim"), )
+            def on_done(done: int, total: int,
+                        agent_result: AgentResult | None) -> None:
+                if agent_result is not None:
+                    label_counts[agent_result.user_type] += 1
+                    numbered_label = f"{agent_result.user_type} {label_counts[agent_result.user_type]}"
+                    body = agent_result.comment or agent_result.abandonment_reason or ""
+                    recent.append(
+                        (numbered_label, agent_result.completed, body))
+                live.update(_build_display(done, total))
 
             result = asyncio.run(
                 run_screenshot_swarm(
@@ -324,7 +362,57 @@ def results(n):
         entries = entries[-n:]
 
     for entry in entries:
-        _print_swarm_result(SwarmResult.model_validate(entry))
+        _print_swarm_result(SwarmResult.model_validate(entry),
+                            show_header=True)
+
+
+@cli.command()
+def expand():
+    """Show full agent-by-agent breakdown of the most recent result."""
+    if not RESULTS_JSON.exists():
+        _console.print("[dim]No results yet.[/]")
+        return
+
+    try:
+        entries = json.loads(RESULTS_JSON.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise click.ClickException(
+            f"Could not read results.json: {exc}") from exc
+
+    if not entries:
+        _console.print("[dim]No results yet.[/]")
+        return
+
+    result = SwarmResult.model_validate(entries[-1])
+    filename = Path(result.target).name
+
+    _console.print()
+    _console.print(f"{filename}: {result.task}", highlight=False)
+    _console.print()
+    _console.print("---", highlight=False)
+    _console.print()
+
+    for r in result.individual_results:
+        status = "✓" if r.completed else "✗"
+        _console.print(f"  {status}  {r.user_type}", highlight=False)
+        if r.comment:
+            _console.print(f"      {r.comment}", highlight=False)
+        if r.abandonment_reason:
+            _console.print(f"      [dim]abandoned: {r.abandonment_reason}[/]",
+                           highlight=False)
+        for fp in r.friction_points:
+            _console.print(f"      [dim]· {fp}[/]", highlight=False)
+        _console.print()
+
+    if result.friction_points:
+        _console.print("---", highlight=False)
+        _console.print()
+        _console.print("All friction points:", highlight=False)
+        _console.print()
+        for point, count in Counter(fp for fp in result.friction_points
+                                    if fp).most_common():
+            _console.print(f"  {point}", highlight=False)
+        _console.print()
 
 
 if __name__ == "__main__":

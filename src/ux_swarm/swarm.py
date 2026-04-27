@@ -19,7 +19,7 @@ async def run_screenshot_swarm(
     num_agents: int,
     model: str,
     max_concurrent: int,
-    on_agent_done: Callable[[int, int], None] | None = None,
+    on_agent_done: Callable[[int, int, AgentResult | None], None] | None = None,
 ) -> SwarmResult:
     """Run N concurrent screenshot agents and return aggregated results."""
     assigned = distribute_users(users, num_agents)
@@ -30,6 +30,7 @@ async def run_screenshot_swarm(
 
     async def _run_agent(idx: int, user_type: UserType) -> None:
         nonlocal completed_count
+        agent_result: AgentResult | None = None
         try:
             async with semaphore:
                 decision, in_tok, out_tok, cost = await run_screenshot_agent(
@@ -38,30 +39,32 @@ async def run_screenshot_swarm(
                     user_type=user_type,
                     model=model,
                 )
+            agent_result = AgentResult(
+                agent_index=idx,
+                user_type=user_type.label,
+                completed=decision.completed,
+                abandoned=decision.abandoned,
+                abandonment_reason=decision.abandonment_reason,
+                friction_points=decision.friction_observed,
+                comment=decision.comment,
+                target_element=decision.target_element,
+                reasoning=decision.reasoning,
+                steps_taken=1,
+                input_tokens=in_tok,
+                output_tokens=out_tok,
+                cost=cost,
+            )
         except asyncio.CancelledError:
             raise
         except Exception:
-            return
+            pass
         finally:
             completed_count += 1
             if on_agent_done:
-                on_agent_done(completed_count, num_agents)
+                on_agent_done(completed_count, num_agents, agent_result)
 
-        results.append(AgentResult(
-            agent_index=idx,
-            user_type=user_type.label,
-            completed=decision.completed,
-            abandoned=decision.abandoned,
-            abandonment_reason=decision.abandonment_reason,
-            friction_points=decision.friction_observed,
-            comment=decision.comment,
-            target_element=decision.target_element,
-            reasoning=decision.reasoning,
-            steps_taken=1,
-            input_tokens=in_tok,
-            output_tokens=out_tok,
-            cost=cost,
-        ))
+        if agent_result is not None:
+            results.append(agent_result)
 
     async with asyncio.TaskGroup() as tg:
         for idx, user_type in enumerate(assigned):
