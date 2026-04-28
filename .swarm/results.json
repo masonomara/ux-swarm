@@ -3313,5 +3313,53 @@
       }
     ],
     "avg_steps_to_completion": 3.0
+  },
+  {
+    "timestamp": "2026-04-28T13:24:29.582454+00:00",
+    "mode": "browser",
+    "target": "https://masonomara.com",
+    "task": "find best way to contact him",
+    "model": "claude-opus-4-7",
+    "users": 1,
+    "completion_rate": 1.0,
+    "margin_of_error": 0.0,
+    "user_breakdown": {
+      "Default User": 1.0
+    },
+    "friction_points": [
+      "No obvious contact link",
+      "Email click lacks on-page confirmation"
+    ],
+    "total_cost": 0.04057500000000001,
+    "individual_results": [
+      {
+        "agent_index": 0,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "no obvious 'contact' link",
+          "Clicking email opens external link but doesn't show confirmation on page; unclear if anything happened"
+        ],
+        "comment": "I clicked email which is the best way to contact him. The task is done - email is the contact method available.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 6135,
+        "output_tokens": 291,
+        "cost": 0.037950000000000005,
+        "actions_taken": [
+          "click: [1]",
+          "click: [3]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 12.99
+      }
+    ],
+    "avg_steps_to_completion": 3.0
   }
 ]

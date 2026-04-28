@@ -13,7 +13,7 @@ from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from ux_swarm.cli import CliError, SmartGroup
+from ux_swarm.cli import CliError, SmartGroup, SwarmCommand
 from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, LOCAL_DIR, PROVIDERS, playwright_state, load_config, run_config_wizard
 from ux_swarm.menu import select
 from ux_swarm.models import AgentResult, SwarmResult, UserType
@@ -63,13 +63,8 @@ ASCII_ART = ("[blue]  __  ___  __    _____      _____   ___  __  ___\n"
              "\\____/_/|_|   /___/ |__/|__/_/ |_/_/|_/_/  /_/[/]")
 
 
-def _print_header() -> None:
-    """Print the ASCII banner, version, description, and current config status."""
-    _console.print(ASCII_ART, highlight=False)
-    _console.print(
-        f"\nSimulates a swarm of synthetic users at your target URL or screenshot to complete a task. - v{__version__}\n",
-        highlight=False)
-
+def _print_config_status() -> None:
+    """Print the current config status lines (provider, model, playwright)."""
     config = load_config()
 
     _, chromium_ok = playwright_state()
@@ -94,6 +89,15 @@ def _print_header() -> None:
     _console.print(f"{model_dot} Model: {model_label}", highlight=False)
     _console.print(f"{pw_dot} Playwright: {playwright_label}\n",
                    highlight=False)
+
+
+def _print_header() -> None:
+    """Print the ASCII banner, version, description, and current config status."""
+    _console.print(ASCII_ART, highlight=False)
+    _console.print(
+        f"\nSimulates a swarm of synthetic users at your target URL or screenshot to complete a task. - v{__version__}\n",
+        highlight=False)
+    _print_config_status()
     _console.print("---\n")
 
 
@@ -110,41 +114,52 @@ def _print_home() -> None:
     _console.print("\n---\n")
 
 
-@click.group(cls=SmartGroup, invoke_without_command=True, context_settings={"help_option_names": ["-h", "--help"]})
-@click.version_option(version=__version__, message="ux-swarm v%(version)s", help="output the version number")
+@click.group(cls=SmartGroup,
+             invoke_without_command=True,
+             context_settings={
+                 "help_option_names": ["-h", "--help"],
+                 "max_content_width": 200
+             })
+@click.version_option(__version__,
+                      "-V",
+                      "--version",
+                      message="ux-swarm v%(version)s",
+                      help="output the version number")
 @click.pass_context
 def cli(ctx):
     if ctx.invoked_subcommand is None:
         if not (LOCAL_CONFIG.exists() or GLOBAL_CONFIG.exists()):
             _print_header()
-            if select("Run setup wizard?", ["Yes", "No"], echo=False) == "Yes":
+            if select("? Run setup wizard:", ["Proceed", "Cancel"],
+                      echo=False) == "Proceed":
                 run_config_wizard()
         else:
             _print_home()
 
 
-@cli.command(short_help="run the setup wizard")
+@cli.command(cls=SwarmCommand,
+             short_help="configure llm provider, model, and browser")
 def config():
-    """Configure ux-swarm interactively (required before first run).
-
-    Prompts for LLM provider, API key, and model. Optionally installs
-    Chromium for browser-based testing.
-    """
-    _print_header()
-    if select("Run setup wizard?", ["Yes", "No"], echo=False) == "Yes":
+    """configure your llm provider, api key, model, and chromium installation"""
+    _console.print()
+    _console.print("Configure your ux-swarm\n", highlight=False)
+    _print_config_status()
+    if select("[green]?[/] Run setup wizard:", ["Proceed", "Cancel"],
+              echo=False) == "Proceed":
         run_config_wizard()
 
 
-@cli.command(short_help="display help for command")
-@click.argument("command", required=False, default=None)
+@cli.command(cls=SwarmCommand, short_help="display help for command")
+@click.argument("command", required=False, default=None, metavar="[command]")
 @click.pass_context
 def help(ctx, command):
-    """Display help for a command."""
+    """display help for a command"""
     if command:
         cmd = cli.commands.get(command)
         if cmd is None:
             raise CliError(f"No such command '{command}'.")
-        with click.Context(cmd, parent=ctx.parent, info_name=command) as sub_ctx:
+        with click.Context(cmd, parent=ctx.parent,
+                           info_name=command) as sub_ctx:
             click.echo(cmd.get_help(sub_ctx))
     else:
         click.echo(ctx.parent.get_help())
@@ -289,7 +304,8 @@ def _print_swarm_result(result: SwarmResult,
     _console.print()
 
 
-def _make_agent_labels(user_types: list[UserType], num_agents: int) -> dict[int, str]:
+def _make_agent_labels(user_types: list[UserType],
+                       num_agents: int) -> dict[int, str]:
     assigned = distribute_users(user_types, num_agents)
     counts: Counter[str] = Counter()
     labels: dict[int, str] = {}
@@ -459,33 +475,54 @@ def _run_browser(
     _print_swarm_result(result)
 
 
-@cli.command(short_help="simulate users against a URL or screenshot")
+@cli.command(cls=SwarmCommand,
+             short_help="run a swarm against a url or screenshot")
 @click.argument("target")
 @click.argument("task")
-@click.option("-u", "--users", default=None, type=int,
-              help=f"Number of simulated users.  [default: {RUN_DEFAULTS['default_users']}]")
-@click.option("-s", "--max-steps", default=None, type=int,
-              help=f"Max interaction steps per agent (browser only).  [default: {RUN_DEFAULTS['max_steps']}]")
-@click.option("-w", "--viewport", default=None, type=int,
-              help=f"Viewport width in pixels (browser only).  [default: {RUN_DEFAULTS['viewport_width']}]")
-@click.option("--headed", is_flag=True,
-              help="Show browser window during run (browser only).")
-@click.option("-v", "--verbose", is_flag=True,
-              help="Show full tracebacks on error.")
+@click.option(
+    "-u",
+    "--users",
+    default=None,
+    type=int,
+    help=f"number of simulated users [default: {RUN_DEFAULTS['default_users']}]"
+)
+@click.option(
+    "-m",
+    "--max-steps",
+    default=None,
+    type=int,
+    help=
+    f"max steps per agent (browser only) [default: {RUN_DEFAULTS['max_steps']}]"
+)
+@click.option(
+    "-w",
+    "--width",
+    default=None,
+    type=int,
+    help=
+    f"viewport width in pixels (browser only) [default: {RUN_DEFAULTS['viewport_width']}]"
+)
+@click.option("-b",
+              "--browser",
+              is_flag=True,
+              help="show the browser window during the run")
+@click.option("-v",
+              "--verbose",
+              is_flag=True,
+              help="show full tracebacks on error")
 @click.pass_context
-def run(ctx, target, task, users, max_steps, viewport, headed, verbose):
-    """Run a swarm of synthetic users against TARGET to complete TASK.
+def run(ctx, target, task, users, max_steps, width, browser, verbose):
+    """run a swarm of synthetic users against a url or screenshot.
 
     \b
-    TARGET  URL (or bare domain) to open in a browser, or a path to a
-            screenshot image (.png / .jpg / .webp / .gif).
-    TASK    Plain-language goal for every agent, e.g. "find the pricing page".
+    <target>  url or domain to open in a browser, or a path to a screenshot image
+    <task>    plain-language goal for every agent
 
     \b
     Examples:
-      swarm run example.com "find the pricing page"
-      swarm run screenshot.png "check out" --users 5
-      swarm run https://app.example.com "sign up" -u 10 -s 12 -w 1440
+      swarm example.com find the pricing page
+      swarm screenshot.png check out --users 5
+      swarm https://app.example.com sign up -u 10 -m 12 -w 1440
     """
     is_url, target = _resolve_target(target)
     if not is_url and not Path(target).exists():
@@ -505,21 +542,19 @@ def run(ctx, target, task, users, max_steps, viewport, headed, verbose):
     _inject_api_key(provider, api_key)
 
     if is_url:
-        _run_browser(target, task, users, max_steps, viewport, headed, verbose,
+        _run_browser(target, task, users, max_steps, width, browser, verbose,
                      model_full)
     else:
         _run_screenshot(target, task, users, verbose, model_full)
 
 
-@cli.command(short_help="list active user personas and weights")
-@click.option("--config", "write_config", is_flag=True,
-              help="Write .swarm/users.json to disk for manual editing.")
+@cli.command(cls=SwarmCommand, short_help="manage user personas")
+@click.option("-c", "--config",
+              "write_config",
+              is_flag=True,
+              help="write .swarm/users.json to disk for manual editing")
 def users(write_config):
-    """List the active user personas and their distribution weights.
-
-    Agents simulate these personas during a run. Use --config to write
-    .swarm/users.json so you can add, remove, or reweight personas.
-    """
+    """list and manage the synthetic user personas agents simulate during a run"""
     from ux_swarm.personas import USERS_JSON, write_default_users
 
     if write_config:
@@ -547,15 +582,13 @@ def users(write_config):
         _console.print()
 
 
-@cli.command(short_help="list saved swarm results")
-@click.option("-n", default=None, type=int, help="Show only the last N results.")
-def results(n):
-    """List saved swarm results from .swarm/results.json.
-
-    Shows target, task, completion rate, and date for each run.
-    Use `swarm expand` to see the full per-agent breakdown of the
-    most recent result.
-    """
+@cli.command(cls=SwarmCommand, short_help="view saved results")
+@click.option("-n", "--number",
+              default=None,
+              type=int,
+              help="show only the last n results")
+def results(number):
+    """view saved swarm results from .swarm/results.json"""
     if not RESULTS_JSON.exists():
         _console.print(
             "[dim]No results yet. Run `swarm <target> <task>` to get started.[/]"
@@ -595,14 +628,10 @@ def results(n):
     _console.print()
 
 
-@cli.command(short_help="show per-agent breakdown of the last run")
+@cli.command(cls=SwarmCommand,
+             short_help="view per-agent details from the last run")
 def expand():
-    """Show a full per-agent breakdown of the most recent swarm result.
-
-    For each simulated user: completion status, actions taken, friction
-    points encountered, and abandonment reason (if any). Aggregated pain
-    points are printed at the end with occurrence counts.
-    """
+    """view a full per-agent breakdown of the most recent swarm result"""
     if not RESULTS_JSON.exists():
         _console.print("[dim]No results yet.[/]")
         return

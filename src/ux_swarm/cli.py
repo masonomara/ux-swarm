@@ -1,8 +1,46 @@
+import inspect
 import re
 
 import click
 
 # TODO: this file and/or lone SmartGroup may be renamed or merged elsewhere as the CLI grows
+
+
+_UPPER_WORD_RE = re.compile(r'\b[A-Z][A-Z0-9_]+\b')
+_LONG_OPT_RE = re.compile(r'--([a-z][-a-z]*)')
+# Minimum column width — matches main help's widest key: "swarm <target> <task> [options]"
+_COL_MIN = 31
+
+
+def _opt_sort_key(row: tuple[str, str]) -> str:
+    m = _LONG_OPT_RE.search(row[0])
+    return m.group(1) if m else row[0]
+
+
+def _parse_arg_rows(block: str) -> list[tuple[str, str]]:
+    """Parse a \\b block of 'name  description\\n    continuation' into (name, desc) pairs."""
+    rows = []
+    current_name: str | None = None
+    current_parts: list[str] = []
+    for line in block.splitlines():
+        if line.strip() in ("\b", "\x08", ""):
+            continue
+        m = re.match(r"^(<\S+>)\s{2,}(.*)", line)
+        if m:
+            if current_name:
+                rows.append((current_name, " ".join(current_parts)))
+            current_name = m.group(1)
+            current_parts = [m.group(2).strip()]
+        elif current_name and line[:1] in (" ", "\t"):
+            current_parts.append(line.strip())
+    if current_name:
+        rows.append((current_name, " ".join(current_parts)))
+    return rows
+
+
+def _fmt_meta(s: str) -> str:
+    """Convert ALL_CAPS metavars to <lowercase> — e.g. TARGET → <target>, INTEGER → <integer>."""
+    return _UPPER_WORD_RE.sub(lambda m: f"<{m.group().lower()}>", s)
 
 
 class CliError(click.ClickException):
@@ -12,6 +50,50 @@ class CliError(click.ClickException):
         click.echo(click.style(f"Error: {self.message}", fg="red"))
         click.echo()
         click.echo()
+
+
+class SwarmCommand(click.Command):
+    """click.Command subclass help formatting."""
+
+    def _real_opts(self, ctx):
+        """Return option help records excluding the bare help flag."""
+        opts = []
+        for param in self.get_params(ctx):
+            rv = param.get_help_record(ctx)
+            if rv is not None and "--help" not in rv[0]:
+                opts.append(rv)
+        return opts
+
+    def format_help(self, ctx, formatter):
+        pieces = self.collect_usage_pieces(ctx)
+        opts = sorted(self._real_opts(ctx), key=_opt_sort_key)
+        if not opts:
+            pieces = [p for p in pieces if p != "[OPTIONS]"]
+        else:
+            pieces = [p for p in pieces if p != "[OPTIONS]"] + ["[options]"]
+        pieces = [_fmt_meta(p) for p in pieces]
+        usage_line = f"{ctx.command_path} {' '.join(pieces)}".strip()
+
+        desc = ""
+        if self.help:
+            desc = inspect.cleandoc(self.help).split("\n\n")[0].replace("\n", " ").strip()
+
+        opt_keys = [_fmt_meta(k) for k, _ in opts]
+        col = max([len(usage_line)] + [len(k) for k in opt_keys] + [_COL_MIN])
+
+        formatter.write("\n")
+        formatter.write("Usage:\n")
+        if desc:
+            formatter.write(f"  {usage_line:<{col}}  {desc}\n")
+        else:
+            formatter.write(f"  {usage_line}\n")
+
+        if opts:
+            with formatter.section("Options"):
+                formatter.write_dl([(_fmt_meta(k).ljust(col), v) for k, v in opts], col_max=col)
+
+    def get_help(self, ctx):
+        return super().get_help(ctx) + "\n"
 
 
 class SmartGroup(click.Group):
@@ -58,7 +140,7 @@ class SmartGroup(click.Group):
         rows = []
         for subcommand in self.list_commands(ctx):
             cmd = self.commands.get(subcommand)
-            if cmd is None or cmd.hidden:
+            if cmd is None or cmd.hidden or subcommand == "run":
                 continue
             parts = [subcommand]
             has_options = any(
@@ -83,28 +165,60 @@ class SmartGroup(click.Group):
             (f"{prog} [options] [command]",        "properly use all options and commands"),
         ]
 
-        opt_rows = [
-            rv for p in self.get_params(ctx)
-            if (rv := p.get_help_record(ctx)) is not None
-        ]
-        cmd_rows = self._command_rows(ctx, formatter)
-
         def _norm(s: str) -> str:
             s = s.rstrip(".")
             return s[:1].lower() + s[1:] if s else s
 
-        opt_rows = [(k, "display help for command" if "--help" in k else _norm(v)) for k, v in opt_rows]
-        cmd_rows = [(k, _norm(v)) for k, v in cmd_rows]
+        # Run options shown directly since `swarm <target> <task>` is the primary usage
+        run_opt_rows = []
+        run_cmd = self.commands.get("run")
+        if run_cmd:
+            with click.Context(run_cmd, parent=ctx, info_name="run") as run_ctx:
+                for param in run_cmd.get_params(run_ctx):
+                    rv = param.get_help_record(run_ctx)
+                    if rv is not None:
+                        key, val = rv
+                        if "--help" not in key:
+                            run_opt_rows.append((_fmt_meta(key), _norm(val)))
 
-        # Single column width across Usage, Options, and Commands so all
-        # descriptions align at the same position.
-        all_keys = [r[0] for r in usage_pairs] + [r[0] for r in opt_rows] + [r[0] for r in cmd_rows]
-        col = max(len(k) for k in all_keys) if all_keys else 30
+        group_opt_rows = [
+            (k, "display help for command" if "--help" in k else _norm(v))
+            for p in self.get_params(ctx)
+            if (rv := p.get_help_record(ctx)) is not None
+            for k, v in [rv]
+        ]
+
+        opt_rows = sorted(run_opt_rows + group_opt_rows, key=_opt_sort_key)
+        cmd_rows = [(k, _norm(v)) for k, v in self._command_rows(ctx, formatter)]
+
+        # Parse arg rows early so they contribute to unified col calculation
+        arg_rows: list[tuple[str, str]] = []
+        example_sections: list[str] = []
+        if run_cmd and run_cmd.help:
+            sections = inspect.cleandoc(run_cmd.help).split("\n\n")
+            if len(sections) > 1:
+                arg_rows = _parse_arg_rows(sections[1])
+            example_sections = sections[2:]
+
+        col = max(
+            (len(k) for k, _ in usage_pairs + opt_rows + cmd_rows + arg_rows),
+            default=20,
+        )
 
         formatter.write("\n")
         formatter.write("Usage:\n")
         for key, desc in usage_pairs:
             formatter.write(f"  {key:<{col}}  {desc}\n")
+
+        if arg_rows:
+            formatter.write_paragraph()
+            formatter.indent()
+            formatter.write_dl([(k.ljust(col), v) for k, v in arg_rows], col_max=col)
+            formatter.dedent()
+
+        for section in example_sections:
+            formatter.write_paragraph()
+            formatter.write_text(section)
 
         if opt_rows:
             with formatter.section("Options"):

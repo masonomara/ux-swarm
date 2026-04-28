@@ -30,7 +30,7 @@ def select(label: str,
         lines = [
             f"[bold]{label}[/]",
             *[
-                f"{'[blue]> [/]' if i == selected_index else '  '} {'[blue]' + opt + '[/]' if i == selected_index else opt}"
+                f"{'[blue][bold]›[/][/]' if i == selected_index else ' '} {'[blue]' + opt + '[/]' if i == selected_index else opt}"
                 for i, opt in enumerate(options)
             ],
             "",
@@ -50,7 +50,7 @@ def select(label: str,
             sys.stdout.flush()
             if echo:
                 console.print(
-                    f"[bold]{label}[/]: [dim]{options[selected_index]}[/]",
+                    f"[bold]{label}[/] [blue]{options[selected_index]}[/]",
                     highlight=False)
             return options[selected_index]
 
