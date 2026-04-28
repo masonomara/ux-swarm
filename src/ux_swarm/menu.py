@@ -30,7 +30,7 @@ def select(label: str,
         lines = [
             f"[bold]{label}[/]",
             *[
-                f"{'[green]> [/]' if i == selected_index else '  '} {'[green]' + opt + '[/]' if i == selected_index else opt}"
+                f"{'[blue]> [/]' if i == selected_index else '  '} {'[blue]' + opt + '[/]' if i == selected_index else opt}"
                 for i, opt in enumerate(options)
             ],
             "",

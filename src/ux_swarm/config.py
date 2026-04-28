@@ -121,7 +121,7 @@ def _wizard_step_provider(state: dict) -> None:
          if p["key"] == state.get("provider_key")),
         0,
     )
-    chosen_name = select("Which LLM provider would you like to use?",
+    chosen_name = select("[green]?[/] Select an LLM provider:",
                          names,
                          default_index=default)
     provider = next(p for p in PROVIDERS if p["name"] == chosen_name)
