@@ -194,3 +194,67 @@ When there was one agent, showing its individual comment, target element, and re
 Each agent reports a list of friction points as free text. We mgiht look into consolidating this further at some pont, but for now `Counter` counts how many times each unique string appears and `.most_common(5)` returns the top five.
 
 We are storign the results in an append-only array in `results.json` - an array of all past runs - instead of individual timestamped files. A single json file means reading everything is one `json.loads` call. Simple to implement, simple to read, simple to export.
+
+## Pain point Aggregator
+
+We had a lot of pain points showing almost exactly the same results, just one character or word difference. i created a light LLM call in `swarm.py` that helps aggregate pain points into one pain point to avoid redundnancy and noise.
+
+## Browser Mode
+
+We completed screenshot mode - one LLM call per agent with vision inference, one decions, done. Screenshot mode is lightweight and works. Browser mdoe is a bit mroe complicated - it involves a playwright loop where each agent opens up a chromium browser, navigates step by step to compelt ethe task, take sa screenshot after each action, calls teh LLM again until etiehr it recods `done`/`give_up` or budget runs out
+
+Brwoser mdoe is the richer verison, it has action history, URLS visitied, wall-clock duration, and step count - but at a cost - actual cost and runtime are higher than screenshot mode.
+
+The first problem was that browser mode needs two independent resource limits vs one for screenshot mode, so we created two semaphores - browser mode needs to watch the Chromium context limimit, then LLM call limits. browser_sem`: limits open browser contexts by holdng the process in memoery for the full run, `llm_sem`: limits concurrent LLM API calls. They operate seperate
+
+### Indexed Element Extraction
+
+- Original design: LLM invents CSS/`text=` selectors from scratch → hallucinates selectors that don't exist or match the wrong element
+- Current design: before each LLM call, extract all visible interactive elements from the page via `page.evaluate()` and assign each a numeric index
+- LLM receives a numbered list (`[0] BUTTON "Sign Up"`, `[1] INPUT type="email"`, …) and returns `element_index: 3` — a number from the list it was given
+- Playwright locator pre-built as `page.locator(INTERACTIVE_SELECTOR).nth(raw_index)` — dispatch is O(1), no second DOM query
+- `raw_index` tracks position in the full `querySelectorAll` result (including invisible elements); `logical_index` is what the LLM sees — they differ when invisible elements are skipped
+- Visibility check: `getBoundingClientRect()` — non-zero width/height means visible; same check Playwright uses internally
+- Capped at 50 elements (`ELEMENT_CAP`); LLM scrolls to see more
+- Only visible elements are included; this keeps the list short and focused on what the user can actually interact with
+- Eliminated the need for `aria_snapshot()` — screenshot provides visual context, indexed list provides actionable references
+
+### BrowserStep Model Design
+
+- Flat model: `thinking`, `action`, `element_index`, `text`, `friction_observed`, `success` — one object per step
+- Earlier drafts had separate `BrowserAction` + `BrowserDecision` models (action intent vs. terminal verdict) — collapsed into one to remove the two-object pattern
+- `action` typed as `str`, not `Literal[...]` — valid actions enforced at runtime via `ALL_BROWSER_ACTIONS` frozenset; keeps model open as action set evolves without a Pydantic schema change
+- `thinking` field comes first in the JSON schema — LLMs generate JSON left-to-right; chain-of-thought before `action` means the model reasons before committing
+- `element_index: int | None` — no default; Pydantic errors if the field is missing entirely, surfacing LLM misbehavior immediately
+- `success: bool | None` — `True` for done, `False` for give_up, `None` for all other actions; collapses terminal decision into the same model
+
+### What Counts as Friction
+
+- Friction comes from the LLM's `friction_observed` field — observations the synthetic user makes while navigating
+- Raw Playwright exception strings (`TimeoutError`, element not found) are not friction — they're infrastructure noise
+- If an action fails, the exception is caught, the agent continues, and the LLM sees the unchanged page on the next step
+- Mixing Playwright internals into the friction list would contaminate the UX signal with implementation details
+
+### Unified Display
+
+- Screenshot and browser modes share one `_build_display()` function
+- `max_steps=None` → screenshot mode, no step counter column in the table
+- `max_steps=int` → browser mode, step counter column added
+- Per-agent `Table` (Rich) with columns: label, status, step (browser only), detail
+- `_STATUS_COLORS` dict maps status strings to Rich color names; `"waiting"` is dim, `"complete"` is green, `"failed"` is red, active states are cyan/yellow/blue
+- `agent_labels` dict pre-built before the run — all agents labelled up front so the full table renders immediately, not as agents complete
+
+### Mode Routing in `main.py`
+
+- `run()` command routes to `_run_screenshot()` or `_run_browser()` based on whether target is a URL or file path
+- Both helpers handle their own display setup, callbacks, `asyncio.run()`, `_save_result()`, and `_print_swarm_result()` — `run()` itself is just config loading + routing
+- `_save_result()` extracted from `run()` so both modes share the same append-only `results.json` write
+
+### Bare Domain Resolution
+
+- `_resolve_target()` in `main.py`: normalises target before routing — prepends `https://` to bare domains (`masonomara.com` → `https://masonomara.com`)
+- Checks file existence first — if the path exists on disk, it's a screenshot regardless of whether it looks like a domain
+- `SmartGroup._try_reconstruct()` in `cli.py`: handles bare domains at the CLI parsing layer so `swarm masonomara.com find the about page` works without quoting
+- Also fixes unquoted multi-word tasks for full URLs (`swarm https://example.com find the button` now works)
+- `_build_run_args()` helper extracted from the image-path reconstruction logic — shared by URL, bare domain, and image path cases
+- Domain pattern matches: `masonomara.com`, `sub.domain.co.uk`, `localhost:3000`, `192.168.1.1:8080`, paths (`masonomara.com/about`)

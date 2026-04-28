@@ -996,10 +996,12 @@ if r.actions_taken:
 ### Phase 1 — `src/ux_swarm/models.py`
 
 **Delete:**
+
 - [ ] Delete `BrowserAction` class (currently lines 23–30)
 - [ ] Delete `BrowserDecision` class (currently lines 32–39)
 
 **Add `BrowserStep` (insert between `ScreenshotDecision` and `AgentResult`):**
+
 - [ ] `class BrowserStep(BaseModel):` with docstring `"LLM response for one step of a browser agent."`
 - [ ] `thinking: str` — comment: `# chain-of-thought before committing to an action`
 - [ ] `action: str` — comment: `# expected: click | type | scroll | hover | press_key | select_option | done | give_up`
@@ -1009,11 +1011,13 @@ if r.actions_taken:
 - [ ] `success: bool | None` — comment: `# True=done success, False=give_up; None for all other actions`
 
 **Update `AgentResult` (append after `cost: float`):**
+
 - [ ] `actions_taken: list[str] | None = None` — comment: `# browser mode: ["click: text=Sign Up", ...]`
 - [ ] `urls_visited: list[str] | None = None` — comment: `# browser mode: pages navigated to`
 - [ ] `duration: float | None = None` — comment: `# browser mode: wall-clock seconds`
 
 **Update `SwarmResult` (append at end of class):**
+
 - [ ] `avg_steps_to_completion: float = 0.0` — comment: `# browser mode; 0.0 in screenshot mode`
 
 ---
@@ -1021,6 +1025,7 @@ if r.actions_taken:
 ### Phase 2 — `src/ux_swarm/browser_agent.py` (new file)
 
 **Imports:**
+
 - [ ] `import asyncio`
 - [ ] `import base64`
 - [ ] `import time`
@@ -1033,6 +1038,7 @@ if r.actions_taken:
 - [ ] `from ux_swarm.models import AgentResult, BrowserStep, UserType`
 
 **Constants:**
+
 - [ ] `PAGE_LOAD_TIMEOUT_MS = 30_000` — comment: `# Playwright navigation limit; not user-perceived wait`
 - [ ] `INITIAL_NETWORKIDLE_WAIT_MS = 2_000` — comment: `# cap for JS-heavy pages to settle; not a forced delay`
 - [ ] `POST_CLICK_WAIT_MS = 1_500` — comment: `# wait for navigation after a click`
@@ -1047,6 +1053,7 @@ if r.actions_taken:
 - [ ] `ACTION_HISTORY_LIMIT = 5`
 
 **`_BROWSER_SYSTEM` (module-level template string):**
+
 - [ ] Persona block: `"You are a synthetic user in a UX test.\n\nYou are playing the role of: {label}\n{description}"`
 - [ ] Task block: `"\nYou are browsing a real website. At each step you see a screenshot of the current page and its accessibility tree.\nYour goal: {task}"`
 - [ ] Stop instruction: `"\n\nTake ONE action per step. The moment the goal is satisfied … respond with done immediately. Do not continue exploring after the task is complete."`
@@ -1056,10 +1063,12 @@ if r.actions_taken:
 - [ ] `"Return ONLY valid JSON. No markdown, no preamble."`
 
 **`_build_browser_system_prompt(user_type: UserType, task: str) -> str`:**
+
 - [ ] `actions_str = " | ".join(BROWSER_ACTIONS)`
 - [ ] Return `_BROWSER_SYSTEM.format(label=user_type.label, description=user_type.description, task=task, actions=actions_str)`
 
 **`_build_browser_user_prompt(step, max_steps, current_url, actions_taken, accessibility_tree) -> str`:**
+
 - [ ] `parts = [f"Step {step}/{max_steps}. URL: {current_url}"]`
 - [ ] If `accessibility_tree`: `parts.append(f"Accessibility tree:\n{accessibility_tree}")`
 - [ ] If `actions_taken[-ACTION_HISTORY_LIMIT:]` non-empty: `parts.append("Recent actions:\n" + "\n".join(f"  {a}" for a in recent))`
@@ -1067,9 +1076,11 @@ if r.actions_taken:
 - [ ] Return `"\n\n".join(parts)`
 
 **`_INTERACTIVE_ROLES` (module-level set):**
+
 - [ ] `_INTERACTIVE_ROLES = {"button", "link", "textbox", "combobox", "checkbox", "radio", "menuitem", "tab", "option", "searchbox", "spinbutton"}`
 
 **`_extract_interactive(node: dict, depth: int = 0) -> list[str]` (module-level):**
+
 - [ ] Guard `if depth > 8: return []`
 - [ ] `lines: list[str] = []`
 - [ ] `role = node.get("role", "")`, `name = node.get("name", "")`
@@ -1078,6 +1089,7 @@ if r.actions_taken:
 - [ ] Return `lines`
 
 **`_get_accessibility_snapshot(page: Page) -> str` (async):**
+
 - [ ] Whole body in `try/except Exception: return ""`
 - [ ] `snapshot = await page.accessibility.snapshot()`; if falsy return `""`
 - [ ] `lines = _extract_interactive(snapshot)`
@@ -1086,6 +1098,7 @@ if r.actions_taken:
 - [ ] Return `text`
 
 **`_follow_page_after_click(browser_context, page, page_count_before) -> Page` (async):**
+
 - [ ] `try: await page.wait_for_load_state("domcontentloaded", timeout=POST_CLICK_WAIT_MS)` — `except Exception: pass`
 - [ ] `pages_after = browser_context.pages`
 - [ ] If `len(pages_after) > page_count_before`:
@@ -1097,6 +1110,7 @@ if r.actions_taken:
 **`run_browser_agent(browser, url, task, user_type, model, llm_semaphore, max_steps, agent_index, viewport=1280, on_step=None) -> tuple[AgentResult, int, int, float]` (async):**
 
 _Initialization:_
+
 - [ ] `actions_taken: list[str] = []`, `urls_visited: list[str] = []`, `all_friction: list[str] = []`
 - [ ] `completed = False`, `abandoned = False`, `abandonment_reason: str | None = None`, `comment = ""`
 - [ ] `total_in_tok = 0`, `total_out_tok = 0`, `total_cost = 0.0`
@@ -1105,9 +1119,11 @@ _Initialization:_
 - [ ] `system_prompt = _build_browser_system_prompt(user_type, task)` — built once before the loop
 
 _Context setup (everything below wrapped in `try/except/finally`):_
+
 - [ ] `browser_context = await browser.new_context(viewport={"width": viewport, "height": VIEWPORT_HEIGHT_PX})`
 
 _Navigation:_
+
 - [ ] `page = await browser_context.new_page()`
 - [ ] `_update("navigating", url, 0)`
 - [ ] `await page.goto(url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT_MS)`
@@ -1115,6 +1131,7 @@ _Navigation:_
 - [ ] `urls_visited.append(page.url)`
 
 _Step loop `for step_index in range(max_steps)`:_
+
 - [ ] `steps_taken = step_index + 1`
 - [ ] `_update("scanning", f"step {steps_taken}/{max_steps}", steps_taken)`
 - [ ] `screenshot_bytes = await page.screenshot(full_page=False)`
@@ -1146,11 +1163,13 @@ _Step loop `for step_index in range(max_steps)`:_
 - [ ] After action block (outside `try/except`): `current_url = page.url`; if `current_url not in urls_visited: urls_visited.append(current_url)`
 
 _Error handling:_
+
 - [ ] `except asyncio.CancelledError`: `_update("failed", "cancelled", steps_taken)`; `raise`
 - [ ] `except Exception as unexpected_error`: `all_friction.append(str(unexpected_error))`; `_update("failed", str(unexpected_error)[:80], steps_taken)`
 - [ ] `finally: await browser_context.close()`
 
 _Return:_
+
 - [ ] `duration = round(time.monotonic() - start_time, 2)`
 - [ ] Build `AgentResult(agent_index=agent_index, user_type=user_type.label, completed=completed, abandoned=abandoned, abandonment_reason=abandonment_reason, friction_points=all_friction, comment=comment, steps_taken=steps_taken, input_tokens=total_in_tok, output_tokens=total_out_tok, cost=total_cost, actions_taken=actions_taken, urls_visited=urls_visited, duration=duration)`
 - [ ] Return `agent_result, total_in_tok, total_out_tok, total_cost`
@@ -1160,10 +1179,12 @@ _Return:_
 ### Phase 3 — `src/ux_swarm/swarm.py`
 
 **New imports (add to existing import block at top of file):**
+
 - [ ] `from playwright.async_api import async_playwright`
 - [ ] `from ux_swarm.browser_agent import MAX_CONCURRENT_LLM_CALLS, run_browser_agent`
 
 **`run_browser_swarm(url, task, users, num_agents, model, max_concurrent, max_steps, viewport=1280, headed=False, on_agent_done=None, on_agent_step=None) -> SwarmResult` (async):**
+
 - [ ] `assigned = distribute_users(users, num_agents)`
 - [ ] `browser_sem = asyncio.Semaphore(max_concurrent)`
 - [ ] `llm_sem = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)`
@@ -1184,6 +1205,7 @@ _Return:_
 - [ ] Return `_aggregate_browser(results, url, task, model, num_agents, consolidated_friction, consolidation_cost)`
 
 **`_aggregate_browser(results, target, task, model, num_agents, friction_points=None, extra_cost=0.0) -> SwarmResult`:**
+
 - [ ] `n = len(results)`; if `n == 0`: raise `CliError(f"All {num_agents} agents failed. Check your API key, model, and whether Chromium is installed.")`
 - [ ] `completion_rate = sum(1 for r in results if r.completed) / n`
 - [ ] `moe = 1.96 * math.sqrt(completion_rate * (1 - completion_rate) / n) if n > 1 else 0.0`
@@ -1199,17 +1221,21 @@ _Return:_
 ### Phase 4 — `src/ux_swarm/main.py`
 
 **Imports:**
+
 - [ ] Change `from ux_swarm.swarm import run_screenshot_swarm` → `from ux_swarm.swarm import run_browser_swarm, run_screenshot_swarm`
 - [ ] Add `Table` to Rich imports: `from rich.table import Table`
 - [ ] Add `distribute_users` to personas import: `from ux_swarm.personas import load_users, distribute_users`
 
 **`RUN_DEFAULTS`:**
+
 - [ ] Change `"max_steps": 3` → `"max_steps": 8`
 
 **Add `_STATUS_COLORS` (module-level dict, above `_print_swarm_result`):**
+
 - [ ] `_STATUS_COLORS = {"waiting": "dim", "navigating": "cyan", "scanning": "yellow", "acting": "blue", "complete": "green", "failed": "red"}`
 
 **Add `_build_display(agent_labels, agent_states, done_count, num_agents, max_steps=None) -> Group`:**
+
 - [ ] `table = Table(show_header=False, box=None, padding=(0, 1))`
 - [ ] `table.add_column(width=20)` — label
 - [ ] `table.add_column(width=12)` — status
@@ -1227,11 +1253,13 @@ _Return:_
 - [ ] Return `Group(table, Text(""), Text.from_markup(f"[dim]{done_count}/{num_agents} agents complete[/]"), Text(""))`
 
 **Add `_save_result(result: SwarmResult) -> None`:**
+
 - [ ] `LOCAL_DIR.mkdir(parents=True, exist_ok=True)`
 - [ ] `try:` read `RESULTS_JSON` if exists → `json.loads()` → append `result.model_dump()` → `RESULTS_JSON.write_text(json.dumps(existing, indent=2) + "\n")`
 - [ ] `except (OSError, json.JSONDecodeError) as exc: _console.print(f"[dim]Warning: could not save results: {exc}[/]")`
 
 **Add `_run_screenshot(target, task, users, verbose, model_full) -> None`:**
+
 - [ ] `num_agents = users or RUN_DEFAULTS["default_users"]`, `max_concurrent = RUN_DEFAULTS["max_concurrent_screenshot"]`
 - [ ] `user_types = load_users()`
 - [ ] Pre-assign labels: `assigned = distribute_users(user_types, num_agents)`; count with `label_counts: Counter[str] = Counter()`; build `agent_labels: dict[int, str] = {}`; then `label_counts.clear()`
@@ -1244,6 +1272,7 @@ _Return:_
 - [ ] `_save_result(result)`, `_print_swarm_result(result)`
 
 **Add `_run_browser(url, task, users, max_steps, viewport, headed, verbose, model_full) -> None`:**
+
 - [ ] Check Chromium: `from ux_swarm.config import playwright_state; _, chromium_ok = playwright_state()`; if not `chromium_ok`: raise `CliError("Chromium is not installed — run \`swarm config\` to install it.")`
 - [ ] `num_agents = users or RUN_DEFAULTS["default_users"]`; `steps = max_steps or RUN_DEFAULTS["max_steps"]`; `vp = viewport or RUN_DEFAULTS["viewport_width"]`; `max_concurrent = RUN_DEFAULTS["max_concurrent_browser"]`
 - [ ] `user_types = load_users()`
@@ -1258,6 +1287,7 @@ _Return:_
 - [ ] `_save_result(result)`, `_print_swarm_result(result)`
 
 **Update `run()` command:**
+
 - [ ] Add `@click.option("--headed", is_flag=True, help="Show browser window during run (browser mode only)")` decorator
 - [ ] Add `headed` to function signature
 - [ ] Replace URL `CliError` stub and screenshot-only guard with: `is_url = target.startswith("http://") or target.startswith("https://")`; `if not is_url and not Path(target).exists(): raise CliError(f"Image not found: {target}")`
@@ -1265,9 +1295,11 @@ _Return:_
 - [ ] Remove the now-dead screenshot body (deque, `label_counts`, `_build_display`, `on_done`, `asyncio.run(run_screenshot_swarm(...))`, `_save_result`, `_print_swarm_result`) — all of it moves into `_run_screenshot`
 
 **Update `_print_swarm_result`:**
+
 - [ ] After `_console.print(f"{rate_pct} of agents completed the task:", ...)`: add `if result.avg_steps_to_completion > 0: _console.print(f"Avg steps to completion: {result.avg_steps_to_completion:.1f}", highlight=False)`
 
 **Update `expand` command:**
+
 - [ ] After printing `comment` for each agent: `if r.actions_taken: for action in r.actions_taken: _console.print(f"[dim]  → {action}[/]", highlight=False)`
 
 ---
@@ -1275,21 +1307,25 @@ _Return:_
 ### Phase 5 — Validate
 
 **Smoke test — single agent:**
+
 - [ ] `swarm https://example.com "find the about page" --users 1`
 - [ ] Agent navigates, takes actions, reaches `done` or `give_up` within 8 steps
 - [ ] `results.json` has new entry: `mode="browser"`, `actions_taken` non-empty list, `urls_visited` contains at least the start URL, `duration` is a positive float
 - [ ] `swarm expand` shows `→` action bullets under the agent row
 
 **Display — per-agent table (both modes):**
+
 - [ ] Screenshot mode: `swarm path/to/image.png "task" --users 5` — per-agent table renders; agents flip from "waiting" to "complete"/"failed" with comment in detail column; no rolling deque
 - [ ] Browser mode: `swarm https://... "task" --users 5` — table shows status cycling through colors; step counter updates in real time; detail shows current URL or action label
 - [ ] `done_count/num_agents` line at bottom increments as agents finish
 
 **Concurrency:**
+
 - [ ] `--users 5`: exactly 5 rows in table; browser contexts capped at `max_concurrent=5`
 - [ ] `--users 20`: 20 rows; staggered launch visible — rows activate at ~0.3s intervals for the first 5
 
 **Actions — each exercised manually:**
+
 - [ ] `click` — agent clicks a link; URL changes; `urls_visited` updated
 - [ ] `type` — agent fills a text field; value appears in input
 - [ ] `scroll` with `text_value = "800"` — page scrolls 800px
@@ -1299,27 +1335,33 @@ _Return:_
 - [ ] `select_option` — `<select>` value changes
 
 **Accessibility tree:**
+
 - [ ] Temporarily add `print(accessibility_tree)` inside the step loop; run `--users 1`; confirm interactive elements (buttons, links, textboxes) appear in output
 - [ ] Remove the debug print
 - [ ] Run against a JS-heavy SPA; confirm snapshot returns empty string or truncated text, never crashes
 
 **New tab handling:**
+
 - [ ] Navigate to a page with a `target="_blank"` link; confirm agent follows to new tab URL; `urls_visited` contains the new tab URL
 
 **Step budget:**
+
 - [ ] `--max-steps 1`: agent takes exactly one action and exits
 - [ ] `--max-steps 8`: multi-step flow (sign-up or search) reaches `done` before budget exhausted
 
 **`--headed` flag:**
+
 - [ ] `--users 1 --headed`: Chromium window opens and is visible throughout the run
 - [ ] `--users 5 --headed`: up to 5 browser windows open
 
 **`avg_steps_to_completion`:**
+
 - [ ] Line appears in final output after completion rate when at least one agent succeeded
 - [ ] Absent when `avg_steps_to_completion == 0.0` (all failed)
 - [ ] Value is the average of `steps_taken` for successful agents only — not failed agents
 
 **Error paths:**
+
 - [ ] Chromium not installed → `CliError`: `"Chromium is not installed — run \`swarm config\` to install it."`
 - [ ] URL returning 404 → agent sees error page, calls `give_up`; no crash; friction recorded
 - [ ] LLM returns selector that doesn't exist → `action_error` caught; `"Action failed: click …"` in friction; agent continues to next step
@@ -1328,5 +1370,6 @@ _Return:_
 - [ ] `--verbose` on real exception → full Python traceback
 
 **Screenshot mode regression:**
+
 - [ ] `swarm path/to/image.png "task"` still completes; result saved with `mode="screenshot"`, `avg_steps_to_completion=0.0`
 - [ ] `swarm results` and `swarm expand` still render screenshot entries correctly

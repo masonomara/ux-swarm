@@ -1,23 +1,24 @@
 import asyncio
 import json
 import os
+import re
 import textwrap
-from collections import Counter, deque
+from collections import Counter
 from importlib.metadata import metadata, PackageNotFoundError
 from pathlib import Path
 
 import click
 from rich.console import Console, Group
 from rich.live import Live
-from rich.spinner import Spinner
+from rich.table import Table
 from rich.text import Text
 
 from ux_swarm.cli import CliError, SmartGroup
 from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, LOCAL_DIR, PROVIDERS, playwright_state, load_config, run_config_wizard
 from ux_swarm.menu import select
-from ux_swarm.models import AgentResult, SwarmResult
-from ux_swarm.personas import load_users
-from ux_swarm.swarm import run_screenshot_swarm
+from ux_swarm.models import AgentResult, SwarmResult, UserType
+from ux_swarm.personas import distribute_users, load_users
+from ux_swarm.swarm import run_browser_swarm, run_screenshot_swarm
 
 try:
     _meta = metadata("ux-swarm")
@@ -30,6 +31,24 @@ except PackageNotFoundError:
 _console = Console()
 RESULTS_JSON = LOCAL_DIR / "results.json"
 
+# Bare hostname/domain — no scheme required. Matches:
+#   masonomara.com  sub.domain.co.uk  localhost:3000  192.168.1.1:8080  example.com/path
+_BARE_URL_RE = re.compile(
+    r'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:/.*)?$'
+    r'|^localhost(?::\d+)?(?:/.*)?$'
+    r'|^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:/.*)?$')
+
+
+def _resolve_target(target: str) -> tuple[bool, str]:
+    """Return (is_url, normalised_target). Prepends https:// to bare domains."""
+    if target.startswith("http://") or target.startswith("https://"):
+        return True, target
+    if Path(target).exists():
+        return False, target
+    if _BARE_URL_RE.match(target):
+        return True, "https://" + target
+    return False, target
+
 
 def _inject_api_key(provider: str, api_key: str) -> None:
     """Write the configured API key into the environment so LiteLLM can read it."""
@@ -38,19 +57,18 @@ def _inject_api_key(provider: str, api_key: str) -> None:
         os.environ[env_var] = api_key
 
 
-ASCII_ART = ("  __  ___  __    _____      _____   ___  __  ___\n"
+ASCII_ART = ("[blue]  __  ___  __    _____      _____   ___  __  ___\n"
              " / / / / |/_/___/ __/ | /| / / _ | / _ \\/  |/  /\n"
              "/ /_/ />  </___/\\ \\ | |/ |/ / __ |/ , _/ /|_/ /\n"
-             "\\____/_/|_|   /___/ |__/|__/_/ |_/_/|_/_/  /_/")
+             "\\____/_/|_|   /___/ |__/|__/_/ |_/_/|_/_/  /_/[/]")
 
 
 def _print_header() -> None:
     """Print the ASCII banner, version, description, and current config status."""
-    _console.print("\n" + ASCII_ART, highlight=False)
-    _console.print(f"\nux-swarm - v{__version__}\n", highlight=False)
+    _console.print(ASCII_ART, highlight=False)
     _console.print(
-        "Synthetic user testing. Simulates a swarm of users who intereact with your target URL or screenshot to complete a specific task.\n"
-    )
+        f"\nSimulates a swarm of synthetic users at your target URL or screenshot to complete a task. - v{__version__}\n",
+        highlight=False)
 
     config = load_config()
 
@@ -123,11 +141,71 @@ def help(ctx):
 # TODO: find a permanent home for these once the run command is built out
 RUN_DEFAULTS: dict[str, int] = {
     "default_users": 20,
-    "max_steps": 3,
+    "max_steps": 8,
     "viewport_width": 1280,
     "max_concurrent_browser": 5,
     "max_concurrent_screenshot": 5,
 }
+
+_STATUS_COLORS = {
+    "waiting": "dim",
+    "navigating": "cyan",
+    "scanning": "yellow",
+    "acting": "blue",
+    "complete": "green",
+    "failed": "red",
+}
+
+
+def _build_display(
+    agent_labels: dict[int, str],
+    agent_states: dict[int, tuple[str, int, str]],
+    done_count: int,
+    num_agents: int,
+    max_steps: int | None = None,
+) -> Group:
+    table = Table(show_header=False, box=None, padding=(0, 1))
+    table.add_column(width=20)
+    table.add_column(width=12)
+    if max_steps is not None:
+        table.add_column(width=6, justify="right")
+    table.add_column()
+
+    for agent_id in sorted(agent_labels):
+        label = agent_labels[agent_id]
+        status, step, detail = agent_states.get(agent_id, ("waiting", 0, ""))
+        color = _STATUS_COLORS.get(status, "white")
+        is_active = status not in ("waiting", "complete", "failed")
+        max_detail = max(
+            _console.width - (42 if max_steps is not None else 36), 10)
+        detail_display = detail if len(
+            detail) <= max_detail else detail[:max_detail - 1] + "…"
+        row: list = [
+            Text.from_markup(f"[bold]{label}[/]"),
+            Text(status, style=color)
+        ]
+        if max_steps is not None:
+            row.append(f"{step}/{max_steps}" if is_active else "")
+        row.append(Text(detail_display, style="dim"))
+        table.add_row(*row)
+
+    return Group(
+        table,
+        Text(""),
+        Text.from_markup(f"[dim]{done_count}/{num_agents} agents complete[/]"),
+        Text(""),
+    )
+
+
+def _save_result(result: SwarmResult) -> None:
+    LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        existing = json.loads(
+            RESULTS_JSON.read_text()) if RESULTS_JSON.exists() else []
+        existing.append(result.model_dump())
+        RESULTS_JSON.write_text(json.dumps(existing, indent=2) + "\n")
+    except (OSError, json.JSONDecodeError) as exc:
+        _console.print(f"[dim]Warning: could not save results: {exc}[/]")
 
 
 def _print_swarm_result(result: SwarmResult,
@@ -140,11 +218,13 @@ def _print_swarm_result(result: SwarmResult,
         filename = Path(result.target).name
         _console.print()
         _console.print(f"{filename}: {result.task}", highlight=False)
-        _console.print()
-        _console.print("---", highlight=False)
 
     _console.print(f"{rate_pct} of agents completed the task:",
                    highlight=False)
+    if result.avg_steps_to_completion > 0:
+        _console.print(
+            f"Avg steps to completion: {result.avg_steps_to_completion:.1f}",
+            highlight=False)
 
     if len(result.user_breakdown) > 1:
         _console.print()
@@ -179,14 +259,13 @@ def _print_swarm_result(result: SwarmResult,
             fraction = f"({count}/{total} users)"
             suffix_len = 2 + len(pct) + 1 + len(fraction)
             max_point = _console.width - 2 - suffix_len - 1
-            display = point if len(point) <= max_point else point[:max_point - 1] + "…"
+            display = point if len(point) <= max_point else point[:max_point -
+                                                                  1] + "…"
             _console.print(
                 f"  {display}  {pct} [dim]{fraction}[/]",
                 highlight=False,
             )
 
-    _console.print()
-    _console.print("---", highlight=False)
     _console.print()
     _console.print(f"{result.users} agents run ({moe_pct} margin of error)",
                    highlight=False)
@@ -198,92 +277,43 @@ def _print_swarm_result(result: SwarmResult,
     _console.print()
 
 
-@cli.command(hidden=True)
-@click.argument("target")
-@click.argument("task")
-@click.option("--users",
-              default=None,
-              type=int,
-              help="Number of simulated users")
-@click.option("--max-steps",
-              default=None,
-              type=int,
-              help="Max interaction steps per agent (browser only)")
-@click.option("--viewport",
-              default=None,
-              type=int,
-              help="Viewport width in pixels (browser only)")
-@click.option("--verbose", is_flag=True, help="Show full tracebacks on error")
-@click.pass_context
-def run(ctx, target, task, users, max_steps, viewport, verbose):
-    """Run a swarm of simulated users against a URL or screenshot image."""
-    if target.startswith("http://") or target.startswith("https://"):
-        raise CliError(
-            "URL targets require browser mode, which is not yet available. "
-            "Pass a screenshot image path instead.")
+def _make_agent_labels(user_types: list[UserType], num_agents: int) -> dict[int, str]:
+    assigned = distribute_users(user_types, num_agents)
+    counts: Counter[str] = Counter()
+    labels: dict[int, str] = {}
+    for i, u in enumerate(assigned):
+        counts[u.label] += 1
+        labels[i] = f"{u.label} {counts[u.label]}"
+    return labels
 
-    if not Path(target).exists():
-        raise CliError(f"Image not found: {target}")
 
-    config = load_config()
-    model_full = config.get("model", "")
-    api_key = config.get("api_key", "")
-    provider = config.get("provider", "")
-
-    if not model_full:
-        raise CliError("No model configured — run `swarm config` to set one.")
-    if not api_key:
-        raise CliError(
-            "No API key configured — run `swarm config` to set one.")
-
-    _inject_api_key(provider, api_key)
-
+def _run_screenshot(
+    target: str,
+    task: str,
+    users: int | None,
+    verbose: bool,
+    model_full: str,
+) -> None:
     num_agents = users or RUN_DEFAULTS["default_users"]
     max_concurrent = RUN_DEFAULTS["max_concurrent_screenshot"]
-
     user_types = load_users()
 
-    filename = Path(target).name
+    agent_labels = _make_agent_labels(user_types, num_agents)
+
     _console.print()
-    _console.print(f"{filename}: {task}", highlight=False)
-    _console.print()
-    _console.print("---", highlight=False)
+    _console.print(f"{Path(target).name}: {task}", highlight=False)
     _console.print()
 
-    # (numbered_label, completed, body)
-    recent: deque[tuple[str, bool | None, str]] = deque(maxlen=5)
-    label_counts: Counter[str] = Counter()
-
-    def _build_display(done: int, total: int) -> Group:
-        running = min(total - done, max_concurrent)
-        spinner = Spinner(
-            "dots",
-            text=f" {running} agents running ({done}/{total} complete)",
-            style="dim",
-        )
-        lines: list[Text] = [Text("")]
-        pad = max((len(lbl) for lbl, _, _ in recent), default=0) + 2
-        for numbered_label, completed, body in recent:
-            color = "green" if completed else "red"
-            label_str = numbered_label.ljust(pad)
-            max_body = max(_console.width - pad - 4, 10)
-            body_display = body if len(body) <= max_body else body[:max_body -
-                                                                   1] + "…"
-            lines.append(
-                Text.from_markup(f"[{color}]{label_str}[/] {body_display}"))
-        lines.append(Text(""))
-
-        lines.append(
-            Text.from_markup(
-                "[dim]run `swarm expand` to see full swarm details when run is complete[/]"
-            ))
-        lines.append(Text(""))
-        lines.append(Text(""))
-        return Group(spinner, *lines)
+    agent_states: dict[int, tuple[str, int, str]] = {}
+    done_count = 0
 
     try:
         with Live(
-                _build_display(0, num_agents),
+                _build_display(agent_labels,
+                               agent_states,
+                               0,
+                               num_agents,
+                               max_steps=None),
                 console=_console,
                 refresh_per_second=10,
                 transient=True,
@@ -291,13 +321,21 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
 
             def on_done(done: int, total: int,
                         agent_result: AgentResult | None) -> None:
+                nonlocal done_count
                 if agent_result is not None:
-                    label_counts[agent_result.user_type] += 1
-                    numbered_label = f"{agent_result.user_type} {label_counts[agent_result.user_type]}"
-                    body = agent_result.comment or agent_result.abandonment_reason or ""
-                    recent.append(
-                        (numbered_label, agent_result.completed, body))
-                live.update(_build_display(done, total))
+                    comment = agent_result.comment or agent_result.abandonment_reason or ""
+                    agent_states[agent_result.agent_index] = (
+                        "complete" if agent_result.completed else "failed",
+                        1,
+                        comment,
+                    )
+                done_count = done
+                live.update(
+                    _build_display(agent_labels,
+                                   agent_states,
+                                   done_count,
+                                   num_agents,
+                                   max_steps=None))
 
             result = asyncio.run(
                 run_screenshot_swarm(
@@ -316,16 +354,142 @@ def run(ctx, target, task, users, max_steps, viewport, verbose):
             raise
         raise CliError(str(exc)) from exc
 
-    LOCAL_DIR.mkdir(parents=True, exist_ok=True)
-    try:
-        existing = json.loads(
-            RESULTS_JSON.read_text()) if RESULTS_JSON.exists() else []
-        existing.append(result.model_dump())
-        RESULTS_JSON.write_text(json.dumps(existing, indent=2) + "\n")
-    except (OSError, json.JSONDecodeError) as exc:
-        _console.print(f"[dim]Warning: could not save results: {exc}[/]")
-
+    _save_result(result)
     _print_swarm_result(result)
+
+
+def _run_browser(
+    url: str,
+    task: str,
+    users: int | None,
+    max_steps: int | None,
+    viewport: int | None,
+    headed: bool,
+    verbose: bool,
+    model_full: str,
+) -> None:
+    _, chromium_ok = playwright_state()
+    if not chromium_ok:
+        raise CliError(
+            "Chromium is not installed — run `swarm config` to install it.")
+
+    num_agents = users or RUN_DEFAULTS["default_users"]
+    steps = max_steps or RUN_DEFAULTS["max_steps"]
+    vp = viewport or RUN_DEFAULTS["viewport_width"]
+    max_concurrent = RUN_DEFAULTS["max_concurrent_browser"]
+    user_types = load_users()
+
+    agent_labels = _make_agent_labels(user_types, num_agents)
+
+    _console.print()
+    _console.print(f"{url}: {task}", highlight=False)
+    _console.print()
+
+    agent_states: dict[int, tuple[str, int, str]] = {}
+    done_count = 0
+
+    try:
+        with Live(
+                _build_display(agent_labels,
+                               agent_states,
+                               0,
+                               num_agents,
+                               max_steps=steps),
+                console=_console,
+                refresh_per_second=4,
+                transient=True,
+        ) as live:
+
+            def on_step(agent_id: int, status: str, detail: str,
+                        step: int) -> None:
+                agent_states[agent_id] = (status, step, detail)
+                live.update(
+                    _build_display(agent_labels,
+                                   agent_states,
+                                   done_count,
+                                   num_agents,
+                                   max_steps=steps))
+
+            def on_agent_done(done: int, total: int,
+                              agent_result: AgentResult | None) -> None:
+                nonlocal done_count
+                done_count = done
+                live.update(
+                    _build_display(agent_labels,
+                                   agent_states,
+                                   done_count,
+                                   num_agents,
+                                   max_steps=steps))
+
+            result = asyncio.run(
+                run_browser_swarm(
+                    url=url,
+                    task=task,
+                    users=user_types,
+                    num_agents=num_agents,
+                    model=model_full,
+                    max_concurrent=max_concurrent,
+                    max_steps=steps,
+                    viewport=vp,
+                    headed=headed,
+                    on_agent_done=on_agent_done,
+                    on_agent_step=on_step,
+                ))
+    except click.ClickException:
+        raise
+    except Exception as exc:
+        if verbose:
+            raise
+        raise CliError(str(exc)) from exc
+
+    _save_result(result)
+    _print_swarm_result(result)
+
+
+@cli.command(hidden=True)
+@click.argument("target")
+@click.argument("task")
+@click.option("--users",
+              default=None,
+              type=int,
+              help="Number of simulated users")
+@click.option("--max-steps",
+              default=None,
+              type=int,
+              help="Max interaction steps per agent (browser only)")
+@click.option("--viewport",
+              default=None,
+              type=int,
+              help="Viewport width in pixels (browser only)")
+@click.option("--headed",
+              is_flag=True,
+              help="Show browser window during run (browser mode only)")
+@click.option("--verbose", is_flag=True, help="Show full tracebacks on error")
+@click.pass_context
+def run(ctx, target, task, users, max_steps, viewport, headed, verbose):
+    """Run a swarm of simulated users against a URL or screenshot image."""
+    is_url, target = _resolve_target(target)
+    if not is_url and not Path(target).exists():
+        raise CliError(f"Image not found: {target}")
+
+    config = load_config()
+    model_full = config.get("model", "")
+    api_key = config.get("api_key", "")
+    provider = config.get("provider", "")
+
+    if not model_full:
+        raise CliError("No model configured — run `swarm config` to set one.")
+    if not api_key:
+        raise CliError(
+            "No API key configured — run `swarm config` to set one.")
+
+    _inject_api_key(provider, api_key)
+
+    if is_url:
+        _run_browser(target, task, users, max_steps, viewport, headed, verbose,
+                     model_full)
+    else:
+        _run_screenshot(target, task, users, verbose, model_full)
 
 
 @cli.command()
@@ -426,8 +590,6 @@ def expand():
     _console.print()
     _console.print(f"{filename}: {result.task}", highlight=False)
     _console.print()
-    _console.print("---", highlight=False)
-    _console.print()
 
     w = _console.width
     label_counts: Counter[str] = Counter()
@@ -437,6 +599,9 @@ def expand():
         color = "green" if r.completed else "red"
         comment = r.comment or ""
         _console.print(f"[{color}]{numbered}[/] - {comment}", highlight=False)
+        if r.actions_taken:
+            for action in r.actions_taken:
+                _console.print(f"[dim]  → {action}[/]", highlight=False)
         bullets = ([r.abandonment_reason]
                    if r.abandonment_reason else []) + r.friction_points
         for bullet in bullets:
@@ -447,9 +612,7 @@ def expand():
         _console.print()
 
     if result.friction_points:
-        _console.print("---", highlight=False)
-        _console.print()
-        _console.print("All pain points:", highlight=False)
+        _console.print("Pain points:", highlight=False)
         _console.print()
         for point, count in Counter(fp for fp in result.friction_points
                                     if fp).most_common():

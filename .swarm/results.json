@@ -2511,5 +2511,807 @@
         "cost": 0.031295
       }
     ]
+  },
+  {
+    "timestamp": "2026-04-28T03:13:02.544864+00:00",
+    "mode": "browser",
+    "target": "https://masonomara.com",
+    "task": "find where mason omara is based out of",
+    "model": "claude-opus-4-7",
+    "users": 10,
+    "completion_rate": 1.0,
+    "margin_of_error": 0.0,
+    "user_breakdown": {
+      "Default User": 1.0,
+      "Freakout": 1.0
+    },
+    "friction_points": [
+      "No location info visible on homepage",
+      "No location info visible on homepage",
+      "No location info visible on homepage",
+      "No location info visible on homepage",
+      "No location info visible on homepage",
+      "No location info visible on homepage",
+      "No location info visible on homepage",
+      "No location info visible on homepage",
+      "No location info visible on homepage",
+      "No location info visible on homepage",
+      "No location info visible on homepage"
+    ],
+    "total_cost": 0.37961500000000004,
+    "individual_results": [
+      {
+        "agent_index": 1,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "The bio says he's based in Asbury Park, NJ (US). Goal satisfied.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 6145,
+        "output_tokens": 208,
+        "cost": 0.035925,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 9.49
+      },
+      {
+        "agent_index": 2,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "Bio shows he's based in Asbury Park, NJ (US). Goal satisfied.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 6145,
+        "output_tokens": 204,
+        "cost": 0.035825,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 10.33
+      },
+      {
+        "agent_index": 4,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "Bio says based in Asbury Park, NJ (US). Goal satisfied.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 6145,
+        "output_tokens": 203,
+        "cost": 0.0358,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 11.09
+      },
+      {
+        "agent_index": 0,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "Bio shows he's based in Asbury Park, NJ (US).",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 6145,
+        "output_tokens": 198,
+        "cost": 0.035675,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 13.06
+      },
+      {
+        "agent_index": 6,
+        "user_type": "Freakout",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Page is sparse - no immediate location info visible",
+          "No location info immediately visible on homepage"
+        ],
+        "comment": "Bio is visible: 'based in Asbury Park, NJ (US)'. Goal satisfied.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 5725,
+        "output_tokens": 308,
+        "cost": 0.03632500000000001,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 11.8
+      },
+      {
+        "agent_index": 9,
+        "user_type": "Freakout",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Page is sparse with no immediate location info visible",
+          "Site is minimal with no immediate location info visible - have to dig into bio"
+        ],
+        "comment": "Bio shows Mason is based in Asbury Park, NJ (US). Goal satisfied.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 5725,
+        "output_tokens": 304,
+        "cost": 0.03622500000000001,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 10.89
+      },
+      {
+        "agent_index": 5,
+        "user_type": "Freakout",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Page is sparse, no immediate location info visible",
+          "No immediate location info on homepage - have to dig into bio"
+        ],
+        "comment": "The bio clearly states Mason is based in Asbury Park, NJ (US). Goal achieved.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 5725,
+        "output_tokens": 308,
+        "cost": 0.036325,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 78.27
+      },
+      {
+        "agent_index": 3,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "page appears empty - only sidebar visible, no bio content shown"
+        ],
+        "comment": "Bio shows Mason is based in Asbury Park, NJ (US). Goal satisfied.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 4,
+        "input_tokens": 8266,
+        "output_tokens": 325,
+        "cost": 0.049455000000000006,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "click: [3]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/",
+          "https://www.masonomara.com/about/bio"
+        ],
+        "duration": 103.65
+      },
+      {
+        "agent_index": 8,
+        "user_type": "Freakout",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Page is sparse - no immediate location info visible, have to dig into menus",
+          "Site is very minimal with no immediate info about location"
+        ],
+        "comment": "Bio is visible: based in Asbury Park, NJ (US). Goal satisfied.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 5725,
+        "output_tokens": 301,
+        "cost": 0.03615,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 95.29
+      },
+      {
+        "agent_index": 7,
+        "user_type": "Freakout",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Page is sparse - no immediate location info visible",
+          "Site is minimal with no immediately visible location info - have to dig into bio"
+        ],
+        "comment": "Bio shows Mason is based in Asbury Park, NJ (US). Goal satisfied.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 5725,
+        "output_tokens": 303,
+        "cost": 0.0362,
+        "actions_taken": [
+          "click: [1]",
+          "click: [2]",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://www.masonomara.com/"
+        ],
+        "duration": 100.59
+      }
+    ],
+    "avg_steps_to_completion": 3.1
+  },
+  {
+    "timestamp": "2026-04-28T03:18:55.540032+00:00",
+    "mode": "browser",
+    "target": "https://offshorecoffeeco.com",
+    "task": "find the cheapest coffee",
+    "model": "claude-opus-4-7",
+    "users": 5,
+    "completion_rate": 1.0,
+    "margin_of_error": 0.0,
+    "user_breakdown": {
+      "Default User": 1.0,
+      "Freakout": 1.0
+    },
+    "friction_points": [
+      "Homepage doesn't show coffee prices upfront",
+      "Homepage doesn't show coffee prices upfront"
+    ],
+    "total_cost": 0.23799000000000003,
+    "individual_results": [
+      {
+        "agent_index": 4,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "Sorted by price low to high. Cheapest visible coffees are Voyager, Brighton, and Riptide all at $18.00. The first one (Voyager Classic Espresso) is the cheapest by sort order. Task complete.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 8046,
+        "output_tokens": 313,
+        "cost": 0.048055,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] Price, low to high",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 17.1
+      },
+      {
+        "agent_index": 1,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "Sorted by price low to high. Cheapest is Voyager Classic Espresso at $18.00 (first product after subscription). Goal achieved - cheapest coffee visible.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 8046,
+        "output_tokens": 259,
+        "cost": 0.04670500000000001,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] Price, low to high",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 18.75
+      },
+      {
+        "agent_index": 2,
+        "user_type": "Freakout",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Homepage doesn't show coffee prices upfront"
+        ],
+        "comment": "Sorted by price low to high. The cheapest coffees are visible: Voyager Classic Espresso, Brighton Espresso Blend, and Riptide House Blend all at From $18.00. Goal achieved.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 7625,
+        "output_tokens": 327,
+        "cost": 0.04630000000000001,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] price-ascending",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 18.77
+      },
+      {
+        "agent_index": 3,
+        "user_type": "Freakout",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Homepage doesn't show coffee prices upfront, has to navigate"
+        ],
+        "comment": "Sorted by price low to high. The cheapest coffees visible are Voyager Classic Espresso, Brighton Espresso Blend, and Riptide House Blend all at From $18.00. The cheapest coffee is shown.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 7625,
+        "output_tokens": 333,
+        "cost": 0.046450000000000005,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] price-ascending",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 20.34
+      },
+      {
+        "agent_index": 0,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "Sorted by price low to high. The cheapest coffees are visible: Voyager Classic Espresso, Brighton Espresso Blend, Riptide House Blend all from $18.00. Goal achieved.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 8046,
+        "output_tokens": 290,
+        "cost": 0.04748000000000001,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] Price, low to high",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 81.32
+      }
+    ],
+    "avg_steps_to_completion": 3.0
+  },
+  {
+    "timestamp": "2026-04-28T03:30:39.551750+00:00",
+    "mode": "browser",
+    "target": "https://offshorecoffeeco.com",
+    "task": "find the cheapest coffee",
+    "model": "claude-opus-4-7",
+    "users": 5,
+    "completion_rate": 1.0,
+    "margin_of_error": 0.0,
+    "user_breakdown": {
+      "Default User": 1.0,
+      "Blind User": 1.0
+    },
+    "friction_points": [
+      "Sort dropdown options not fully visible",
+      "Small text hard to read for low vision users",
+      "Sort order inconsistent for price low to high",
+      "Multiple products tied at lowest price, ambiguous ordering",
+      "Multiple products tied at lowest price, ambiguous ordering"
+    ],
+    "total_cost": 0.25818,
+    "individual_results": [
+      {
+        "agent_index": 1,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "Sorted by price low to high. The cheapest coffee shown is Voyager Classic Espresso, Brighton Espresso Blend, or Riptide House Blend at From $18.00. Goal is satisfied - cheapest coffee is visible.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 8046,
+        "output_tokens": 303,
+        "cost": 0.047805,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] Price, low to high",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 17.16
+      },
+      {
+        "agent_index": 4,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "Sorted by price low to high. The first products show From $18.00 (Voyager, Brighton, Riptide all tied). Roaster's Choice is $20. The cheapest is $18.00. Goal achieved.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 8046,
+        "output_tokens": 288,
+        "cost": 0.04743,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] Price, low to high",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 17.2
+      },
+      {
+        "agent_index": 3,
+        "user_type": "Blind User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Sort dropdown options not fully visible in the element list",
+          "Small text may be hard to read for low vision users"
+        ],
+        "comment": "Sorted by price low to high. The first products show From $18.00 (Voyager, Brighton, Riptide). Roaster's Choice is $20. So cheapest is $18.00. Task complete.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 7602,
+        "output_tokens": 345,
+        "cost": 0.046635,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] Price, low to high",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 19.66
+      },
+      {
+        "agent_index": 0,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Sort order seems inconsistent - $20 item appears before $18 items",
+          "Multiple products tied at From $18.00, ambiguous which is cheapest"
+        ],
+        "comment": "Sorted by price ascending. The cheapest coffees all start at $18.00 - Riptide House Blend is the first one shown. Goal is satisfied as I can see the cheapest coffee.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 4,
+        "input_tokens": 10737,
+        "output_tokens": 493,
+        "cost": 0.06601000000000001,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] price-ascending",
+          "scroll: [] 400",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans",
+          "https://offshorecoffeeco.com/collections/coffee-beans?filter.v.price.gte=&filter.v.price.lte=&sort_by=price-ascending"
+        ],
+        "duration": 25.78
+      },
+      {
+        "agent_index": 2,
+        "user_type": "Blind User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Multiple coffees tied at $18.00, unclear which is 'the' cheapest"
+        ],
+        "comment": "Sorted by price low to high. Cheapest items shown start at $18.00 (Voyager Classic Espresso, Brighton Espresso Blend, Riptide House Blend tied). The cheapest coffee is visible.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 7602,
+        "output_tokens": 307,
+        "cost": 0.045685,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] Price, low to high",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 103.42
+      }
+    ],
+    "avg_steps_to_completion": 3.2
+  },
+  {
+    "timestamp": "2026-04-28T04:36:00.054462+00:00",
+    "mode": "browser",
+    "target": "https://offshorecoffeeco.com",
+    "task": "find the cheapest coffee",
+    "model": "claude-opus-4-7",
+    "users": 5,
+    "completion_rate": 0.6,
+    "margin_of_error": 0.4294144850840502,
+    "user_breakdown": {
+      "Default User": 1.0,
+      "Blind User": 0.0
+    },
+    "friction_points": [
+      "Sort options not obvious without exploring dropdown",
+      "Subscription appears first despite price low-to-high sort",
+      "Many unlabeled links confuse screen reader users",
+      "Many unlabeled links confuse screen reader users",
+      "No prices visible in product list",
+      "Many unlabeled links confuse screen reader users",
+      "Many unlabeled links confuse screen reader users",
+      "COFFEE link doesn't navigate, unclear if dropdown",
+      "COFFEE link doesn't navigate, unclear if dropdown",
+      "COFFEE link doesn't navigate, unclear if dropdown",
+      "Many unlabeled links confuse screen reader users",
+      "No prices visible in product list",
+      "COFFEE link doesn't navigate, unclear if dropdown",
+      "No prices visible in product list",
+      "COFFEE link doesn't navigate, unclear if dropdown",
+      "Many unlabeled links confuse screen reader users",
+      "COFFEE link doesn't navigate, unclear if dropdown",
+      "COFFEE link doesn't navigate, unclear if dropdown",
+      "COFFEE link doesn't navigate, unclear if dropdown",
+      "No prices visible in product list",
+      "COFFEE link doesn't navigate, unclear if dropdown",
+      "Many unlabeled links confuse screen reader users"
+    ],
+    "total_cost": 0.34543,
+    "individual_results": [
+      {
+        "agent_index": 0,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Sort options aren't immediately obvious without exploring dropdown values"
+        ],
+        "comment": "Sorted by price low to high. The cheapest coffee is visible - Voyager Classic Espresso, Brighton Espresso Blend, and Riptide House Blend all at From $18.00. The cheapest is shown.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 8102,
+        "output_tokens": 323,
+        "cost": 0.048585,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] price-ascending",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 20.05
+      },
+      {
+        "agent_index": 1,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Subscription product appears first despite sort by price low-to-high, which is confusing"
+        ],
+        "comment": "Sorted by price low to high. The cheapest coffees visible start at $18.00 (Voyager, Brighton, Riptide). Subscription is $20 but it's listed first likely because of relevance ordering. The cheapest coffee is $18.00. Goal achieved.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 8103,
+        "output_tokens": 354,
+        "cost": 0.049365000000000006,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] Price, low to high",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 21.05
+      },
+      {
+        "agent_index": 4,
+        "user_type": "Default User",
+        "completed": true,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [],
+        "comment": "Sorted by price low to high. The cheapest coffees visible start at $18.00 (Voyager, Brighton, Riptide). The first one shown at $20 is the subscription. The cheapest coffee is $18.00 - visible now.",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 3,
+        "input_tokens": 8102,
+        "output_tokens": 280,
+        "cost": 0.047510000000000004,
+        "actions_taken": [
+          "click: [6]",
+          "select_option: [41] price-ascending",
+          "done: []"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/",
+          "https://offshorecoffeeco.com/collections/coffee-beans"
+        ],
+        "duration": 25.46
+      },
+      {
+        "agent_index": 3,
+        "user_type": "Blind User",
+        "completed": false,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Several anchor links (5, 11-20, 30) have no labels, making them confusing for screen reader users",
+          "Several anchor elements have no labels (indices 5, 11-20, 30) which makes navigation confusing with a screen reader",
+          "No prices are visible in the element list - product links don't include price info, making it hard to compare prices with a screen reader",
+          "Many unlabeled links (indices 5, 11-20, 30-32) which are friction points for screen reader navigation",
+          "Multiple unlabeled links (indexes 5, 11-20, 30) provide no information to a screen reader user",
+          "Clicking COFFEE menu didn't seem to navigate - unclear if it's a dropdown or link",
+          "Navigation seems to loop back to homepage - unclear if previous Enter presses actually navigated to a coffee listing page",
+          "Navigation seems to loop back to homepage; unclear if COFFEE link goes to a collection page or just expands a menu",
+          "Many links have no labels (elements 5, 11-20, 30) which is very confusing for a screen reader user",
+          "Repeated attempts to navigate to coffee listings haven't produced visible price information",
+          "Repeated Enter on COFFEE link doesn't seem to navigate - possibly a dropdown menu that needs different interaction",
+          "No price information visible on homepage element list - only product names"
+        ],
+        "comment": "",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 8,
+        "input_tokens": 12029,
+        "output_tokens": 1388,
+        "cost": 0.094845,
+        "actions_taken": [
+          "press_key: [6] Enter",
+          "press_key: [41] Enter",
+          "press_key: [6] Enter",
+          "press_key: [41] Enter",
+          "press_key: [6] Enter",
+          "press_key: [6] Enter",
+          "press_key: [6] Enter",
+          "press_key: [6] Enter"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/"
+        ],
+        "duration": 39.58
+      },
+      {
+        "agent_index": 2,
+        "user_type": "Blind User",
+        "completed": false,
+        "abandoned": false,
+        "abandonment_reason": null,
+        "friction_points": [
+          "Pressing Enter on the COFFEE link [6] three times didn't navigate anywhere - unclear feedback for screen reader user",
+          "Many anchor links [5], [11]-[20], [30] have no text labels \u2014 completely opaque to screen reader users",
+          "Previous Enter presses on element [6] don't seem to have navigated anywhere - still on homepage",
+          "Pressing Enter on COFFEE link doesn't seem to navigate - I'm still on homepage. Unclear if it's a dropdown menu that needs different interaction.",
+          "Repeated Enter presses on COFFEE link don't seem to be navigating - unclear if page is changing",
+          "No price information available in the element list to compare coffee prices",
+          "Navigation seems unresponsive - multiple Enter presses on COFFEE link don't appear to be changing the page",
+          "Many unlabeled anchor elements [5], [11]-[20], [30] make it confusing to know what they link to with a screen reader"
+        ],
+        "comment": "",
+        "target_element": null,
+        "reasoning": null,
+        "steps_taken": 8,
+        "input_tokens": 12029,
+        "output_tokens": 1168,
+        "cost": 0.08934500000000001,
+        "actions_taken": [
+          "press_key: [6] Enter",
+          "press_key: [6] Enter",
+          "press_key: [6] Enter",
+          "press_key: [41] Enter",
+          "press_key: [6] Enter",
+          "press_key: [6] Enter",
+          "press_key: [41] Enter",
+          "press_key: [6] Enter"
+        ],
+        "urls_visited": [
+          "https://offshorecoffeeco.com/"
+        ],
+        "duration": 112.45
+      }
+    ],
+    "avg_steps_to_completion": 3.0
   }
 ]

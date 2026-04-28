@@ -5,8 +5,9 @@
     "description": "In a hurry and doesn't read pages \u2014 scans them quickly, looking for words or links that match the task. Doesn't weigh options or look for the best choice; clicks the first thing that looks reasonable enough to work (satisficing). Doesn't try to understand how the site is structured or how things work \u2014 muddles through, and if something seems to work, sticks with it without figuring out why. Has low tolerance for friction: any moment that requires stopping to think, read instructions, or decode an interface increases the chance of giving up and abandoning the task."
   },
   {
-    "label": "Freakout",
+    "label": "Blind User",
     "weight": 0.5,
-    "description": "Will freak out and quit if the first thing they see isnt explicitly what the task asks for"
+    "accessibility": "screen_reader",
+    "description": "I am legally blind and navigate entirely with a screen reader. I cannot see the page."
   }
 ]

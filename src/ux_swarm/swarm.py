@@ -5,15 +5,19 @@ import json
 import math
 from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import cast
+from typing import Literal, cast
 
-import click
 from litellm import ModelResponse, acompletion, completion_cost
 
+from playwright.async_api import async_playwright
+
 from ux_swarm.agent import run_screenshot_agent
+from ux_swarm.browser_agent import run_browser_agent
 from ux_swarm.cli import CliError
 from ux_swarm.models import AgentResult, SwarmResult, UserType
 from ux_swarm.personas import distribute_users
+
+_LLM_CONCURRENCY = 3
 
 
 async def run_screenshot_swarm(
@@ -80,7 +84,7 @@ async def run_screenshot_swarm(
     raw_friction = [fp for r in results for fp in r.friction_points]
     consolidated_friction, consolidation_cost = await _consolidate_friction_points(
         raw_friction, model)
-    return _aggregate(results, target, task, model, num_agents,
+    return _aggregate(results, target, task, model, num_agents, "screenshot",
                       consolidated_friction, consolidation_cost)
 
 
@@ -103,7 +107,7 @@ async def _consolidate_friction_points(raw: list[str],
         "same length as the input array. Each element is the canonical phrase for the corresponding "
         "input. Observations that describe the same problem MUST have byte-for-byte identical "
         "canonical strings.\n\n"
-        "Return ONLY valid JSON. No markdown, no explanation.")
+        "Return ONLY valid JSON. No explanation.")
     messages = [
         {
             "role": "system",
@@ -142,16 +146,17 @@ def _aggregate(
     task: str,
     model: str,
     num_agents: int,
+    mode: Literal["screenshot", "browser"],
     friction_points: list[str] | None = None,
     extra_cost: float = 0.0,
 ) -> SwarmResult:
-    """Aggregate individual agent results into a SwarmResult."""
     n = len(results)
 
     if n == 0:
-        raise CliError(
-            f"All {num_agents} agents failed. Check your API key and model configuration."
-        )
+        hint = ("Check your API key, model, and whether Chromium is installed."
+                if mode == "browser" else
+                "Check your API key and model configuration.")
+        raise CliError(f"All {num_agents} agents failed. {hint}")
 
     completion_rate = sum(1 for r in results if r.completed) / n
     moe = 1.96 * math.sqrt(completion_rate *
@@ -170,9 +175,15 @@ def _aggregate(
     total_cost = sum(r.cost for r in results) + extra_cost
     model_id = model.split("/", 1)[-1] if "/" in model else model
 
+    avg_steps = 0.0
+    if mode == "browser":
+        successful_steps = [r.steps_taken for r in results if r.completed]
+        avg_steps = sum(successful_steps) / len(
+            successful_steps) if successful_steps else 0.0
+
     return SwarmResult(
         timestamp=datetime.now(timezone.utc).isoformat(),
-        mode="screenshot",
+        mode=mode,
         target=target,
         task=task,
         model=model_id,
@@ -183,4 +194,77 @@ def _aggregate(
         friction_points=friction_points,
         total_cost=total_cost,
         individual_results=results,
+        avg_steps_to_completion=avg_steps,
     )
+
+
+async def run_browser_swarm(
+    url: str,
+    task: str,
+    users: list[UserType],
+    num_agents: int,
+    model: str,
+    max_concurrent: int,
+    max_steps: int,
+    viewport: int = 1280,
+    headed: bool = False,
+    on_agent_done: Callable[[int, int, AgentResult | None], None]
+    | None = None,
+    on_agent_step: Callable[[int, str, str, int], None] | None = None,
+) -> SwarmResult:
+    """Run N concurrent browser agents and return aggregated results."""
+    assigned = distribute_users(users, num_agents)
+    browser_sem = asyncio.Semaphore(max_concurrent)
+    llm_sem = asyncio.Semaphore(_LLM_CONCURRENCY)
+
+    results: list[AgentResult] = []
+    completed_count = 0
+
+    async def _run_agent(idx: int, user_type: UserType) -> None:
+        nonlocal completed_count
+        agent_result: AgentResult | None = None
+
+        def on_step(status: str, detail: str, step: int) -> None:
+            if on_agent_step:
+                on_agent_step(idx, status, detail, step)
+
+        try:
+            async with browser_sem:
+                agent_result, _, _, _ = await run_browser_agent(
+                    browser=browser,
+                    url=url,
+                    task=task,
+                    user_type=user_type,
+                    model=model,
+                    llm_semaphore=llm_sem,
+                    max_steps=max_steps,
+                    agent_index=idx,
+                    viewport=viewport,
+                    on_step=on_step,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            pass
+        finally:
+            completed_count += 1
+            if on_agent_done:
+                on_agent_done(completed_count, num_agents, agent_result)
+
+        if agent_result is not None:
+            results.append(agent_result)
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=not headed)
+        async with asyncio.TaskGroup() as tg:
+            for idx, user_type in enumerate(assigned):
+                tg.create_task(_run_agent(idx, user_type))
+                if idx < max_concurrent:
+                    await asyncio.sleep(0.3)
+        await browser.close()
+
+    raw_friction = [fp for r in results for fp in r.friction_points]
+    consolidated_friction, consolidation_cost = await _consolidate_friction_points(
+        raw_friction, model)
+    return _aggregate(results, url, task, model, num_agents, "browser",
+                      consolidated_friction, consolidation_cost)
