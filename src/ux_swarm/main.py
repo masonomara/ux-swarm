@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+import sys
 import textwrap
 from collections import Counter
 from importlib.metadata import metadata, PackageNotFoundError
@@ -57,10 +58,13 @@ def _inject_api_key(provider: str, api_key: str) -> None:
         os.environ[env_var] = api_key
 
 
-ASCII_ART = ("[blue]  __  ___  __    _____      _____   ___  __  ___\n"
-             " / / / / |/_/___/ __/ | /| / / _ | / _ \\/  |/  /\n"
-             "/ /_/ />  </___/\\ \\ | |/ |/ / __ |/ , _/ /|_/ /\n"
-             "\\____/_/|_|   /___/ |__/|__/_/ |_/_/|_/_/  /_/[/]")
+ASCII_ART = ("\n[cyan]  ▄       ▄      ▄▄▄▄▄    ▄ ▄   ██   █▄▄▄▄ █▀▄▀█ \n"
+             "   █  ▀▄   █ ▄▄ █     ▀▄ █   █  █ █  █  ▄▀ █ █ █ \n"
+             "█   █   █ ▀      ▀▀▀▀▄  █ ▄   █ █▄▄█ █▀▀▌  █ ▄ █ \n"
+             "█   █  ▄ █     ▀▄▄▄▄▀   █  █  █ █  █ █  █  █   █ \n"
+             "█▄ ▄█ █   ▀▄             █ █ █     █   █      █  \n"
+             " ▀▀▀   ▀                  ▀ ▀     █   ▀      ▀   \n"
+             f"[/]v{__version__} - genesis                  [cyan]▀[/]\n")
 
 
 def _print_config_status() -> None:
@@ -95,23 +99,10 @@ def _print_header() -> None:
     """Print the ASCII banner, version, description, and current config status."""
     _console.print(ASCII_ART, highlight=False)
     _console.print(
-        f"\nSimulates a swarm of synthetic users at your target URL or screenshot to complete a task. - v{__version__}\n",
+        "Simulate a swarm of synthetic users analyzing a screenshot or\n"
+        "browsing a url to complete a task, then aggregate UX findings.\n",
         highlight=False)
     _print_config_status()
-    _console.print("---\n")
-
-
-def _print_home() -> None:
-    """Print the home screen: header plus usage and command hints."""
-    _print_header()
-    _console.print("Usage:\n")
-    _console.print("  swarm <target> <task>\n", highlight=False)
-    _console.print("Commands:\n")
-    _console.print("  config   Run setup wizard")
-    _console.print("  users    List active user types")
-    _console.print("  results  View saved results")
-    _console.print("  help     View all commands")
-    _console.print("\n---\n")
 
 
 @click.group(cls=SmartGroup,
@@ -123,18 +114,24 @@ def _print_home() -> None:
 @click.version_option(__version__,
                       "-V",
                       "--version",
-                      message="ux-swarm v%(version)s",
+                      message="\n%(version)s\n",
                       help="output the version number")
 @click.pass_context
 def cli(ctx):
     if ctx.invoked_subcommand is None:
+        _print_header()
         if not (LOCAL_CONFIG.exists() or GLOBAL_CONFIG.exists()):
-            _print_header()
-            if select("? Run setup wizard:", ["Proceed", "Cancel"],
+            if select("[green]?[/] [bold]Run setup wizard:[/]", ["Proceed", "Cancel"],
                       echo=False) == "Proceed":
+                w = _console.width
+                desc = ("Simulate a swarm of synthetic users analyzing a screenshot or\n"
+                        "browsing a url to complete a task, then aggregate UX findings.")
+                desc_lines = sum(max(1, (len(l) + w - 1) // w) for l in desc.split('\n')) + 1
+                sys.stdout.write(f"\x1b[{desc_lines + 4}A\x1b[J")
+                sys.stdout.flush()
                 run_config_wizard()
         else:
-            _print_home()
+            click.echo(ctx.get_help().lstrip('\n'))
 
 
 @cli.command(cls=SwarmCommand,
@@ -142,10 +139,16 @@ def cli(ctx):
 def config():
     """configure your llm provider, api key, model, and chromium installation"""
     _console.print()
-    _console.print("Configure your ux-swarm\n", highlight=False)
+    _console.print("Configure ux-swarm\nPress Ctrl+C to cancel.\n",
+                   highlight=False)
     _print_config_status()
-    if select("[green]?[/] Run setup wizard:", ["Proceed", "Cancel"],
+    if select("[green]?[/] [bold]Run setup wizard:[/]", ["Proceed", "Cancel"],
               echo=False) == "Proceed":
+        # Erase: "Configure ux-swarm" + "Press Ctrl+C..." + blank + 3 bullet lines + blank = 7 lines
+        sys.stdout.write("\x1b[7A\x1b[J")
+        sys.stdout.flush()
+        _console.print("Configure ux-swarm\nPress Ctrl+C to cancel.\n",
+                       highlight=False)
         run_config_wizard()
 
 
@@ -549,7 +552,8 @@ def run(ctx, target, task, users, max_steps, width, browser, verbose):
 
 
 @cli.command(cls=SwarmCommand, short_help="manage user personas")
-@click.option("-c", "--config",
+@click.option("-c",
+              "--config",
               "write_config",
               is_flag=True,
               help="write .swarm/users.json to disk for manual editing")
@@ -583,7 +587,8 @@ def users(write_config):
 
 
 @cli.command(cls=SwarmCommand, short_help="view saved results")
-@click.option("-n", "--number",
+@click.option("-n",
+              "--number",
               default=None,
               type=int,
               help="show only the last n results")
@@ -604,8 +609,8 @@ def results(number):
         _console.print("[dim]No results yet.[/]")
         return
 
-    if n:
-        entries = entries[-n:]
+    if number:
+        entries = entries[-number:]
 
     rows = []
     for entry in entries:

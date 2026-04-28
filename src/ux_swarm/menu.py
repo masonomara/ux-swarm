@@ -28,9 +28,9 @@ def select(label: str,
 
     def _draw() -> int:
         lines = [
-            f"[bold]{label}[/]",
+            f"{label}",
             *[
-                f"{'[blue][bold]›[/][/]' if i == selected_index else ' '} {'[blue]' + opt + '[/]' if i == selected_index else opt}"
+                f"{'[cyan][bold]›[/][/]' if i == selected_index else ' '} {'[cyan]' + opt + '[/]' if i == selected_index else opt}"
                 for i, opt in enumerate(options)
             ],
             "",
@@ -50,7 +50,7 @@ def select(label: str,
             sys.stdout.flush()
             if echo:
                 console.print(
-                    f"[bold]{label}[/] [blue]{options[selected_index]}[/]",
+                    f"{label} [cyan]{options[selected_index]}[/]\n",
                     highlight=False)
             return options[selected_index]
 
