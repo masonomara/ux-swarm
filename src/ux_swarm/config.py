@@ -355,4 +355,4 @@ def run_config_wizard() -> None:
         "model": state["model"],
     })
     console.print(
-        f"[green]✓[/] Setup wizard complete! Config saved: [bold][underline]{saved_path}[/][/]\n")
+        f"[green]✓[/] Setup wizard complete. Config saved: [bold][underline]{saved_path}[/][/]\n")
