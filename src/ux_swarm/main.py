@@ -110,21 +110,10 @@ def _print_home() -> None:
     _console.print("\n---\n")
 
 
-@click.group(cls=SmartGroup, invoke_without_command=True)
-@click.version_option(version=__version__, message="ux-swarm v%(version)s")
+@click.group(cls=SmartGroup, invoke_without_command=True, context_settings={"help_option_names": ["-h", "--help"]})
+@click.version_option(version=__version__, message="ux-swarm v%(version)s", help="output the version number")
 @click.pass_context
 def cli(ctx):
-    """Run synthetic UX tests against a URL or screenshot.
-
-    Pass a URL or image path followed by a task description to run immediately:
-
-    \b
-      swarm example.com "find the pricing page"
-      swarm screenshot.png "complete checkout" --users 10
-      swarm https://app.example.com "sign up" -u 5 --headed
-
-    Run `swarm config` before first use to set up your LLM provider.
-    """
     if ctx.invoked_subcommand is None:
         if not (LOCAL_CONFIG.exists() or GLOBAL_CONFIG.exists()):
             _print_header()
@@ -134,7 +123,7 @@ def cli(ctx):
             _print_home()
 
 
-@cli.command()
+@cli.command(short_help="run the setup wizard")
 def config():
     """Configure ux-swarm interactively (required before first run).
 
@@ -146,11 +135,19 @@ def config():
         run_config_wizard()
 
 
-@cli.command()
+@cli.command(short_help="display help for command")
+@click.argument("command", required=False, default=None)
 @click.pass_context
-def help(ctx):
-    """Show this help message."""
-    click.echo(ctx.parent.get_help())
+def help(ctx, command):
+    """Display help for a command."""
+    if command:
+        cmd = cli.commands.get(command)
+        if cmd is None:
+            raise CliError(f"No such command '{command}'.")
+        with click.Context(cmd, parent=ctx.parent, info_name=command) as sub_ctx:
+            click.echo(cmd.get_help(sub_ctx))
+    else:
+        click.echo(ctx.parent.get_help())
 
 
 # TODO: find a permanent home for these once the run command is built out
@@ -462,7 +459,7 @@ def _run_browser(
     _print_swarm_result(result)
 
 
-@cli.command()
+@cli.command(short_help="simulate users against a URL or screenshot")
 @click.argument("target")
 @click.argument("task")
 @click.option("-u", "--users", default=None, type=int,
@@ -514,7 +511,7 @@ def run(ctx, target, task, users, max_steps, viewport, headed, verbose):
         _run_screenshot(target, task, users, verbose, model_full)
 
 
-@cli.command()
+@cli.command(short_help="list active user personas and weights")
 @click.option("--config", "write_config", is_flag=True,
               help="Write .swarm/users.json to disk for manual editing.")
 def users(write_config):
@@ -550,7 +547,7 @@ def users(write_config):
         _console.print()
 
 
-@cli.command()
+@cli.command(short_help="list saved swarm results")
 @click.option("-n", default=None, type=int, help="Show only the last N results.")
 def results(n):
     """List saved swarm results from .swarm/results.json.
@@ -598,7 +595,7 @@ def results(n):
     _console.print()
 
 
-@cli.command()
+@cli.command(short_help="show per-agent breakdown of the last run")
 def expand():
     """Show a full per-agent breakdown of the most recent swarm result.
 

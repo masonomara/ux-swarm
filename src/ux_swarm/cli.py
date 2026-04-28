@@ -49,6 +49,74 @@ class SmartGroup(click.Group):
 
         return None
 
+    def get_help(self, ctx):
+        # Click's get_help() strips all trailing newlines; restore one so the
+        # blank line after the last command is visible in the terminal.
+        return super().get_help(ctx) + "\n"
+
+    def _command_rows(self, ctx, formatter):
+        rows = []
+        for subcommand in self.list_commands(ctx):
+            cmd = self.commands.get(subcommand)
+            if cmd is None or cmd.hidden:
+                continue
+            parts = [subcommand]
+            has_options = any(
+                isinstance(p, click.Option) and not (p.is_eager and not p.expose_value)
+                for p in cmd.params
+            )
+            if has_options:
+                parts.append("[options]")
+            # run's positional args are documented in the usage line; skip them here
+            if subcommand != "run":
+                for p in cmd.params:
+                    if isinstance(p, click.Argument):
+                        name = (p.name or "arg").lower().replace("_", "-")
+                        parts.append(name if p.required else f"[{name}]")
+            rows.append((" ".join(parts), cmd.get_short_help_str(limit=formatter.width)))
+        return rows
+
+    def format_help(self, ctx, formatter):
+        prog = ctx.command_path
+        usage_pairs = [
+            (f"{prog} <target> <task> [options]", "shortcut to run swarm immediately"),
+            (f"{prog} [options] [command]",        "properly use all options and commands"),
+        ]
+
+        opt_rows = [
+            rv for p in self.get_params(ctx)
+            if (rv := p.get_help_record(ctx)) is not None
+        ]
+        cmd_rows = self._command_rows(ctx, formatter)
+
+        def _norm(s: str) -> str:
+            s = s.rstrip(".")
+            return s[:1].lower() + s[1:] if s else s
+
+        opt_rows = [(k, "display help for command" if "--help" in k else _norm(v)) for k, v in opt_rows]
+        cmd_rows = [(k, _norm(v)) for k, v in cmd_rows]
+
+        # Single column width across Usage, Options, and Commands so all
+        # descriptions align at the same position.
+        all_keys = [r[0] for r in usage_pairs] + [r[0] for r in opt_rows] + [r[0] for r in cmd_rows]
+        col = max(len(k) for k in all_keys) if all_keys else 30
+
+        formatter.write("\n")
+        formatter.write("Usage:\n")
+        for key, desc in usage_pairs:
+            formatter.write(f"  {key:<{col}}  {desc}\n")
+
+        if opt_rows:
+            with formatter.section("Options"):
+                formatter.write_dl([(k.ljust(col), v) for k, v in opt_rows], col_max=col)
+
+        if cmd_rows:
+            with formatter.section("Commands"):
+                formatter.write_dl([(k.ljust(col), v) for k, v in cmd_rows], col_max=col)
+            formatter.write("\n")
+
+        self.format_epilog(ctx, formatter)
+
     def _build_run_args(self, target: str, rest: list[str]) -> list[str] | None:
         """Split rest into task words and flags, return ['run', target, task, ...flags]."""
         task_words: list[str] = []
