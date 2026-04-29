@@ -357,6 +357,8 @@ async def run_browser_agent(
         if on_step: on_step("failed", "cancelled", steps_taken)
         raise
     except Exception as unexpected_error:
+        status = "error"
+        comment = str(unexpected_error)
         if on_step: on_step("failed", str(unexpected_error)[:80], steps_taken)
     finally:
         if browser_context is not None:
