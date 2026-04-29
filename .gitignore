@@ -23,6 +23,13 @@ build/
 *.log
 .env
 
+# Coverage
+.coverage
+htmlcov/
+
+# Test cache
+.pytest_cache/
+
 # Local workspace
 .claude/
 .docs/
