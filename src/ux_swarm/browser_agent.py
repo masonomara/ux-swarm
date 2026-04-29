@@ -305,7 +305,7 @@ async def run_browser_agent(
                     if on_step: on_step("failed", thinking[:120], steps_taken)
                 break
 
-            if on_step: on_step("acting", action_label, steps_taken)
+            if on_step: on_step("acting", thinking[:120] if thinking else "", steps_taken)
 
             try:
                 if action in ELEMENT_ACTIONS:

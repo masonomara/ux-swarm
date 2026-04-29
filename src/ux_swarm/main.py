@@ -747,9 +747,6 @@ def expand():
         color = {"completed": "green", "timeout": "yellow", "abandoned": "red"}.get(r.status, "red")
         comment = r.comment or ""
         _console.print(f"[{color}]{numbered}[/] - {comment}", highlight=False)
-        if r.actions_taken:
-            for action in r.actions_taken:
-                _console.print(f"[dim]  → {action}[/]", highlight=False)
         bullets = ([r.abandonment_reason]
                    if r.abandonment_reason else []) + r.friction_points
         for bullet in bullets:
