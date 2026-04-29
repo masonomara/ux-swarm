@@ -1,5 +1,0 @@
-{
-  "provider": "anthropic",
-  "api_key": "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",
-  "model": "anthropic/claude-opus-4-7"
-}
