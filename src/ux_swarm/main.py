@@ -436,29 +436,22 @@ def _run_browser(
     done_count = 0
     start_time = time.monotonic()
 
+    class _LiveRenderable:
+        def __rich__(self):
+            return _build_display(agent_labels, agent_states, done_count,
+                                  num_agents, start_time, max_steps=steps)
+
     try:
         with Live(
-                _build_display(agent_labels,
-                               agent_states,
-                               0,
-                               num_agents,
-                               start_time,
-                               max_steps=steps),
+                _LiveRenderable(),
                 console=_console,
-                refresh_per_second=4,
+                refresh_per_second=1,
                 transient=True,
-        ) as live:
+        ):
 
             def on_step(agent_id: int, status: str, detail: str,
                         step: int) -> None:
                 agent_states[agent_id] = (status, step, detail)
-                live.update(
-                    _build_display(agent_labels,
-                                   agent_states,
-                                   done_count,
-                                   num_agents,
-                                   start_time,
-                                   max_steps=steps))
 
             def on_agent_done(done: int, total: int,
                               agent_result: AgentResult | None) -> None:
@@ -472,13 +465,6 @@ def _run_browser(
                         comment,
                     )
                 done_count = done
-                live.update(
-                    _build_display(agent_labels,
-                                   agent_states,
-                                   done_count,
-                                   num_agents,
-                                   start_time,
-                                   max_steps=steps))
 
             result = asyncio.run(
                 run_browser_swarm(
@@ -769,6 +755,7 @@ def expand():
         status_str = "[green]Completed[/]" if r.status == "completed" else "[red]Failed[/]"
         comment = ("User ran out of steps. " + r.comment if r.status == "timeout" and r.comment else
                    "User ran out of steps." if r.status == "timeout" else
+                   r.comment if r.status == "error" else
                    r.comment or "")
         _console.print(f"{numbered}{a11y} {status_str}", highlight=False)
         bullets = (([comment] if comment else []) +
