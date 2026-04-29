@@ -222,7 +222,7 @@ async def run_browser_agent(
                 "height": VIEWPORT_HEIGHT_PX
             })
         page = await browser_context.new_page()
-        if on_step: on_step("navigating", url, 0)
+        if on_step: on_step("running", url, 0)
         await page.goto(url,
                         wait_until="domcontentloaded",
                         timeout=PAGE_LOAD_TIMEOUT_MS)
@@ -236,8 +236,7 @@ async def run_browser_agent(
         for step_index in range(max_steps):
             steps_taken = step_index + 1
             if on_step:
-                on_step("scanning", f"step {steps_taken}/{max_steps}",
-                        steps_taken)
+                on_step("running", last_thinking[:120] if last_thinking else page.url, steps_taken)
 
             screenshot_b64: str | None = None
             if not is_screen_reader:
@@ -305,7 +304,7 @@ async def run_browser_agent(
                     if on_step: on_step("failed", thinking[:120], steps_taken)
                 break
 
-            if on_step: on_step("acting", thinking[:120] if thinking else "", steps_taken)
+            if on_step: on_step("running", thinking[:120] if thinking else "", steps_taken)
 
             try:
                 if action in ELEMENT_ACTIONS:

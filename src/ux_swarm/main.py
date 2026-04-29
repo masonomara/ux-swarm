@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import textwrap
+import time
 from collections import Counter
 from importlib.metadata import metadata, PackageNotFoundError
 from pathlib import Path
@@ -186,9 +187,7 @@ RUN_DEFAULTS: dict[str, int] = {
 
 _STATUS_COLORS = {
     "waiting": "dim",
-    "navigating": "cyan",
-    "scanning": "yellow",
-    "acting": "blue",
+    "running": "blue",
     "complete": "green",
     "failed": "red",
 }
@@ -199,37 +198,39 @@ def _build_display(
     agent_states: dict[int, tuple[str, int, str]],
     done_count: int,
     num_agents: int,
+    start_time: float,
     max_steps: int | None = None,
 ) -> Group:
-    table = Table(show_header=False, box=None, padding=(0, 1))
-    table.add_column(width=20)
-    table.add_column(width=12)
+    table = Table(show_header=False, box=None, padding=(0, 1, 0, 0))
+    table.add_column(width=20, no_wrap=True)
+    table.add_column(width=10, no_wrap=True)
     if max_steps is not None:
-        table.add_column(width=6, justify="right")
-    table.add_column()
+        table.add_column(width=12, no_wrap=True)
+    table.add_column(no_wrap=True)
 
     for agent_id in sorted(agent_labels):
         label = agent_labels[agent_id]
         status, step, detail = agent_states.get(agent_id, ("waiting", 0, ""))
         color = _STATUS_COLORS.get(status, "white")
-        is_active = status not in ("waiting", "complete", "failed")
+        is_active = status == "running"
         max_detail = max(
-            _console.width - (42 if max_steps is not None else 36), 10)
+            _console.width - (44 if max_steps is not None else 32), 10)
         detail_display = detail if len(
             detail) <= max_detail else detail[:max_detail - 1] + "…"
-        row: list = [
-            Text.from_markup(f"[bold]{label}[/]"),
-            Text(status, style=color)
-        ]
+        row: list = [Text(label), Text(status, style=color)]
         if max_steps is not None:
-            row.append(f"{step}/{max_steps}" if is_active else "")
+            row.append(f"step {step}/{max_steps}" if is_active else "")
         row.append(Text(detail_display, style="dim"))
         table.add_row(*row)
 
+    elapsed = int(time.monotonic() - start_time)
+    timer = f"{elapsed // 60}:{elapsed % 60:02d}"
     return Group(
+        Text(""),
         table,
         Text(""),
-        Text.from_markup(f"[dim]{done_count}/{num_agents} agents complete[/]"),
+        Text.from_markup(
+            f"[dim]{timer}  {done_count}/{num_agents} agents complete[/]"),
         Text(""),
     )
 
@@ -257,12 +258,15 @@ def _print_swarm_result(result: SwarmResult,
         _console.print(f"[/bold][/underline]{filename}[/][/] {result.task}",
                        highlight=False)
 
-    _console.print(f"{rate_pct} of agents completed the task:",
-                   highlight=False)
+    _console.print(
+        f"{result.users} simulated users [dim]({moe_pct} margin of error)[/]",
+        highlight=False)
+    _console.print()
+
+    completion_line = f"{rate_pct} of agents completed the task"
     if result.avg_steps_to_completion > 0:
-        _console.print(
-            f"Avg steps to completion: {result.avg_steps_to_completion:.1f}",
-            highlight=False)
+        completion_line += f": Avg steps to completion: {result.avg_steps_to_completion:.1f}"
+    _console.print(completion_line, highlight=False)
 
     if len(result.user_breakdown) > 1:
         _console.print()
@@ -278,12 +282,11 @@ def _print_swarm_result(result: SwarmResult,
             done = label_done.get(label, 0)
             pct = f"{rate:.0%}"
             _console.print(
-                f"  {label:<{col}}  {pct} [dim]({done}/{total} users)[/]",
+                f"  {label:<{col}}  {pct}  [dim]{done}/{total} users[/]",
                 highlight=False,
             )
 
     if result.friction_points:
-        total = result.users
         agent_mentions: Counter[str] = Counter()
         for r in result.individual_results:
             for fp in set(fp for fp in r.friction_points if fp):
@@ -293,24 +296,20 @@ def _print_swarm_result(result: SwarmResult,
         _console.print("Most common pain points:", highlight=False)
         _console.print()
         for point, count in top:
-            pct = f"{count / total:.0%}"
-            fraction = f"({count}/{total} users)"
-            suffix_len = 2 + len(pct) + 1 + len(fraction)
-            max_point = _console.width - 2 - suffix_len - 1
+            prefix = f"{count}×  "
+            max_point = _console.width - 2 - len(prefix) - 1
             display = point if len(point) <= max_point else point[:max_point -
-                                                                  1] + "…"
-            _console.print(
-                f"  {display}  {pct} [dim]{fraction}[/]",
-                highlight=False,
-            )
+                                                                   1] + "…"
+            _console.print(f"  {prefix}{display}", highlight=False)
 
+    results_link = RESULTS_JSON.resolve().as_uri()
     _console.print()
-    _console.print(f"{result.users} agents run ({moe_pct} margin of error)",
-                   highlight=False)
-    _console.print(f"Report saved to [dim]{RESULTS_JSON}[/]", highlight=False)
+    _console.print(
+        f"Report saved to [bold underline][link={results_link}]{RESULTS_JSON}[/link][/bold underline]",
+        highlight=False)
     _console.print()
     if not show_header:
-        _console.print("[dim]run `swarm expand` to see full swarm details[/]",
+        _console.print("[dim]run `swarm expand` to see full results[/]",
                        highlight=False)
     _console.print()
 
@@ -341,11 +340,11 @@ def _run_screenshot(
     agent_labels = _make_agent_labels(user_types, num_agents)
 
     _console.print()
-    _console.print(f"{Path(target).name}: {task}", highlight=False)
-    _console.print()
+    _console.print(f"[bold underline]{Path(target).name}[/bold underline] {task}", highlight=False)
 
     agent_states: dict[int, tuple[str, int, str]] = {}
     done_count = 0
+    start_time = time.monotonic()
 
     try:
         with Live(
@@ -353,6 +352,7 @@ def _run_screenshot(
                                agent_states,
                                0,
                                num_agents,
+                               start_time,
                                max_steps=None),
                 console=_console,
                 refresh_per_second=10,
@@ -365,7 +365,8 @@ def _run_screenshot(
                 if agent_result is not None:
                     comment = agent_result.comment or agent_result.abandonment_reason or ""
                     agent_states[agent_result.agent_index] = (
-                        "complete" if agent_result.status == "completed" else "failed",
+                        "complete"
+                        if agent_result.status == "completed" else "failed",
                         1,
                         comment,
                     )
@@ -375,6 +376,7 @@ def _run_screenshot(
                                    agent_states,
                                    done_count,
                                    num_agents,
+                                   start_time,
                                    max_steps=None))
 
             result = asyncio.run(
@@ -422,11 +424,13 @@ def _run_browser(
     agent_labels = _make_agent_labels(user_types, num_agents)
 
     _console.print()
-    _console.print(f"{url}: {task}", highlight=False)
-    _console.print()
+    _console.print(
+        f"[bold underline][link={url}]{url}[/link][/bold underline] {task}",
+        highlight=False)
 
     agent_states: dict[int, tuple[str, int, str]] = {}
     done_count = 0
+    start_time = time.monotonic()
 
     try:
         with Live(
@@ -434,6 +438,7 @@ def _run_browser(
                                agent_states,
                                0,
                                num_agents,
+                               start_time,
                                max_steps=steps),
                 console=_console,
                 refresh_per_second=4,
@@ -448,17 +453,27 @@ def _run_browser(
                                    agent_states,
                                    done_count,
                                    num_agents,
+                                   start_time,
                                    max_steps=steps))
 
             def on_agent_done(done: int, total: int,
                               agent_result: AgentResult | None) -> None:
                 nonlocal done_count
+                if agent_result is not None:
+                    comment = agent_result.comment or agent_result.abandonment_reason or ""
+                    agent_states[agent_result.agent_index] = (
+                        "complete"
+                        if agent_result.status == "completed" else "failed",
+                        agent_result.steps_taken,
+                        comment,
+                    )
                 done_count = done
                 live.update(
                     _build_display(agent_labels,
                                    agent_states,
                                    done_count,
                                    num_agents,
+                                   start_time,
                                    max_steps=steps))
 
             result = asyncio.run(
@@ -736,19 +751,25 @@ def expand():
     filename = Path(result.target).name
 
     _console.print()
-    _console.print(f"{filename}: {result.task}", highlight=False)
+    _console.print(f"[bold underline]{filename}[/bold underline] {result.task}", highlight=False)
     _console.print()
 
     w = _console.width
+    users_by_label = {u.label: u for u in load_users()}
     label_counts: Counter[str] = Counter()
     for r in result.individual_results:
         label_counts[r.user_type] += 1
         numbered = f"{r.user_type} {label_counts[r.user_type]}"
-        color = {"completed": "green", "timeout": "yellow", "abandoned": "red"}.get(r.status, "red")
-        comment = r.comment or ""
-        _console.print(f"[{color}]{numbered}[/] - {comment}", highlight=False)
-        bullets = ([r.abandonment_reason]
-                   if r.abandonment_reason else []) + r.friction_points
+        u = users_by_label.get(r.user_type)
+        a11y = " [blue]a11y[/]" if u and u.accessibility else ""
+        status_str = "[green]Completed[/]" if r.status == "completed" else "[red]Failed[/]"
+        comment = ("User ran out of steps. " + r.comment if r.status == "timeout" and r.comment else
+                   "User ran out of steps." if r.status == "timeout" else
+                   r.comment or "")
+        _console.print(f"{numbered}{a11y} {status_str}", highlight=False)
+        bullets = (([comment] if comment else []) +
+                   ([r.abandonment_reason] if r.abandonment_reason else []) +
+                   r.friction_points)
         for bullet in bullets:
             bullet_lines = textwrap.wrap(bullet, width=w - 6)
             for i, line in enumerate(bullet_lines):
@@ -761,7 +782,7 @@ def expand():
         _console.print()
         for point, count in Counter(fp for fp in result.friction_points
                                     if fp).most_common():
-            _console.print(f"  {count}x {point}", highlight=False)
+            _console.print(f"  {count}×  {point}", highlight=False)
         _console.print()
 
 
