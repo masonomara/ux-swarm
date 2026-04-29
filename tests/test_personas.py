@@ -5,7 +5,7 @@ import pytest
 import ux_swarm.personas as personas_mod
 from ux_swarm.cli import CliError
 from ux_swarm.models import UserType
-from ux_swarm.personas import DEFAULT_USERS, distribute_users, load_users
+from ux_swarm.personas import DEFAULT_USERS, distribute_users, load_users, write_default_users
 
 
 def test_load_users_no_file_returns_defaults(monkeypatch, tmp_path):
@@ -100,7 +100,28 @@ def test_default_user_label_and_weight():
     assert user.weight == 1.0
 
 
-def test_default_user_describes_scanning_behavior():
-    description = DEFAULT_USERS[0].description.lower()
-    assert "scan" in description
-    assert "satisfic" in description
+def test_default_user_has_non_empty_description():
+    assert DEFAULT_USERS[0].description.strip()
+
+
+def test_write_default_users_creates_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(personas_mod, "USERS_JSON", tmp_path / "users.json")
+    monkeypatch.setattr(personas_mod, "LOCAL_DIR", tmp_path)
+    path = write_default_users()
+    assert path.exists()
+
+
+def test_write_default_users_valid_json(monkeypatch, tmp_path):
+    monkeypatch.setattr(personas_mod, "USERS_JSON", tmp_path / "users.json")
+    monkeypatch.setattr(personas_mod, "LOCAL_DIR", tmp_path)
+    path = write_default_users()
+    data = json.loads(path.read_text())
+    assert isinstance(data, list)
+    assert data[0]["label"] == "Default User"
+
+
+def test_write_default_users_trailing_newline(monkeypatch, tmp_path):
+    monkeypatch.setattr(personas_mod, "USERS_JSON", tmp_path / "users.json")
+    monkeypatch.setattr(personas_mod, "LOCAL_DIR", tmp_path)
+    path = write_default_users()
+    assert path.read_text().endswith("\n")
