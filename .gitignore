@@ -35,3 +35,4 @@ htmlcov/
 .docs/
 .notes/
 .swarm/
+docs/worker/
