@@ -1,6 +1,6 @@
 [project]
 name = "ux-swarm"
-version = "0.1.1"
+version = "1.0.0"
 description = "Synthetic UX testing"
 readme = "README.md"
 requires-python = ">=3.11"
