@@ -17,7 +17,7 @@ from rich.text import Text
 
 from ux_swarm.cli import CliError, SmartGroup, SwarmCommand
 from ux_swarm.config import GLOBAL_CONFIG, LOCAL_CONFIG, LOCAL_DIR, PROVIDERS, playwright_state, load_config, run_config_wizard
-from ux_swarm.menu import select
+from ux_swarm.menu import GoBack, select
 from ux_swarm.models import AgentResult, SwarmResult, UserType
 from ux_swarm.personas import distribute_users, load_users
 from ux_swarm.swarm import run_browser_swarm, run_screenshot_swarm
@@ -149,8 +149,12 @@ def config():
         "Configure your LLM provider, model, and browser\n[dim]Press Ctrl+C to cancel.[/]\n",
         highlight=False)
     _print_config_status()
-    if select("[green]?[/] [bold]Run setup wizard:[/]", ["Proceed", "Cancel"],
-              echo=False) == "Proceed":
+    try:
+        choice = select("[green]?[/] [bold]Run setup wizard:[/]", ["Proceed", "Cancel"],
+                        echo=False)
+    except GoBack:
+        return
+    if choice == "Proceed":
         # Erase: "Configure your LLM provider, model, and browser" + "Press Ctrl+C..." + blank + 3 bullet lines + blank = 7 lines
         sys.stdout.write("\x1b[7A\x1b[J")
         sys.stdout.flush()
