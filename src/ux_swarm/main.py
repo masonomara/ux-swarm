@@ -121,12 +121,17 @@ def cli(ctx):
     if ctx.invoked_subcommand is None:
         _print_header()
         if not (LOCAL_CONFIG.exists() or GLOBAL_CONFIG.exists()):
-            if select("[green]?[/] [bold]Run setup wizard:[/]", ["Proceed", "Cancel"],
+            if select("[green]?[/] [bold]Run setup wizard:[/]",
+                      ["Proceed", "Cancel"],
                       echo=False) == "Proceed":
                 w = _console.width
-                desc = ("Simulate a swarm of synthetic users analyzing a screenshot or\n"
-                        "browsing a url to complete a task, then aggregate UX findings.")
-                desc_lines = sum(max(1, (len(l) + w - 1) // w) for l in desc.split('\n')) + 1
+                desc = (
+                    "Simulate a swarm of synthetic users analyzing a screenshot or\n"
+                    "browsing a url to complete a task, then aggregate UX findings."
+                )
+                desc_lines = sum(
+                    max(1, (len(l) + w - 1) // w)
+                    for l in desc.split('\n')) + 1
                 sys.stdout.write(f"\x1b[{desc_lines + 4}A\x1b[J")
                 sys.stdout.flush()
                 run_config_wizard()
@@ -314,7 +319,7 @@ def _make_agent_labels(user_types: list[UserType],
     labels: dict[int, str] = {}
     for i, u in enumerate(assigned):
         counts[u.label] += 1
-        a11y = " [dim]· a11y[/]" if u.accessibility else ""
+        a11y = " [blue]a11y[/]" if u.accessibility else ""
         labels[i] = f"{u.label} {counts[u.label]}{a11y}"
     return labels
 
@@ -551,14 +556,21 @@ def run(ctx, target, task, users, max_steps, width, browser, verbose):
         _run_screenshot(target, task, users, verbose, model_full)
 
 
-@cli.command(cls=SwarmCommand, short_help="manage user personas")
-@click.option("-c",
-              "--config",
+@cli.command(cls=SwarmCommand, short_help="manage user personas", fields_section="users.json fields")
+@click.option("-e",
+              "--edit",
               "write_config",
               is_flag=True,
               help="write .swarm/users.json to disk for manual editing")
 def users(write_config):
-    """list and manage the synthetic user personas agents simulate during a run"""
+    """list and manage the synthetic user personas agents simulate during a run
+
+\b
+"label":         Display name shown for this user type during a run.
+"weight":        Relative sampling weight — higher means more agents of this type.
+"description":   Behavioral prompt guiding each agent's decisions and style.
+"accessibility":  Optional. Set to "screen_reader" to enable screen reader navigation.
+"""
     from ux_swarm.personas import USERS_JSON, write_default_users
 
     if write_config:
@@ -573,27 +585,71 @@ def users(write_config):
 
     active = load_users()
     total_weight = sum(u.weight for u in active)
+
+    link = USERS_JSON.resolve().as_uri()
     _console.print()
-    for u in active:
-        share = u.weight / total_weight
-        a11y = "  [dim]· a11y[/]" if u.accessibility else ""
-        _console.print(f"  [bold]{u.label}[/]{a11y}  [dim]{share:.0%}[/]",
-                       highlight=False)
+    _console.print(
+        "Personas agents assume during a run. Weight sets each type's share of the swarm.",
+        highlight=False,
+    )
+    _console.print(
+        f"Navigate to [bold][link={link}][underline].swarm/users.json[/underline][/link][/bold] to edit users.\n",
+        highlight=False,
+    )
+
+    label_plain = [
+        f"{u.label} a11y" if u.accessibility else u.label for u in active
+    ]
+    label_markup = [
+        f"{u.label} [blue]a11y[/blue]" if u.accessibility else u.label
+        for u in active
+    ]
+    weights = [f"{u.weight / total_weight:.0%}" for u in active]
+
+    col_w0 = max(len("User"), max(len(l) for l in label_plain))
+    col_w1 = max(len("Weight"), max(len(w) for w in weights))
+    # -6: two 2-space separators + 2-char safety buffer; -1 reserves space for the "…" glyph
+    col_w2 = max(20, _console.width - col_w0 - col_w1 - 6)
+
+    descs = [
+        u.description[:col_w2 - 1] +
+        ("…" if len(u.description) > col_w2 - 1 else "") for u in active
+    ]
+
+    _console.print(f"{'User':<{col_w0}}  {'Weight':<{col_w1}}  Description",
+                   highlight=False)
+    _console.print(f"{'─' * col_w0}  {'─' * col_w1}  {'─' * col_w2}",
+                   highlight=False)
+    for i, u in enumerate(active):
+        pad = " " * (col_w0 - len(label_plain[i]))
         _console.print(
-            f"  [dim]{u.description[:120]}{'…' if len(u.description) > 120 else ''}[/]",
-            highlight=False,
-        )
-        _console.print()
+            f"{label_markup[i]}{pad}  {weights[i].ljust(col_w1)}  {descs[i]}",
+            highlight=False)
+    _console.print()
 
 
-@cli.command(cls=SwarmCommand, short_help="view saved results")
+@cli.command(cls=SwarmCommand, short_help="view saved results", fields_section="results.json fields")
 @click.option("-n",
               "--number",
               default=None,
               type=int,
               help="show only the last n results")
 def results(number):
-    """view saved swarm results from .swarm/results.json"""
+    """view saved swarm results from .swarm/results.json
+
+\b
+"timestamp":        ISO 8601 datetime when the run completed.
+"mode":             Run mode: "screenshot" or "browser".
+"target":           File path or URL that was tested.
+"task":             The goal given to agents.
+"model":            LLM model used for the run.
+"users":            Total number of agents in the swarm.
+"completion_rate":  Fraction of agents that completed the task (0–1).
+"margin_of_error":  Statistical margin of error for the completion rate.
+"user_breakdown":   Per-user-type completion rates as a JSON object.
+"friction_points":  Repeated pain points mentioned by multiple agents.
+"total_cost":       Total LLM API cost in USD for the run.
+"""
     if not RESULTS_JSON.exists():
         _console.print(
             "[dim]No results yet. Run `swarm <target> <task>` to get started.[/]"
@@ -609,8 +665,9 @@ def results(number):
         _console.print("[dim]No results yet.[/]")
         return
 
+    entries = list(reversed(entries))
     if number:
-        entries = entries[-number:]
+        entries = entries[:number]
 
     rows = []
     for entry in entries:
@@ -622,12 +679,30 @@ def results(number):
             r.timestamp[:10],
         ))
 
-    col_w = [max(len(row[i]) for row in rows) for i in range(4)]
-
+    link = RESULTS_JSON.resolve().as_uri()
     _console.print()
+    _console.print(
+        "A log of every completed swarm run.",
+        highlight=False,
+    )
+    _console.print(
+        f"Navigate to [bold][link={link}][underline].swarm/results.json[/underline][/link][/bold] to view raw results.\n",
+        highlight=False,
+    )
+
+    headers = ["Target", "Task", "Completion", "Date"]
+    col_w = [
+        max(len(h), max(len(row[i]) for row in rows))
+        for i, h in enumerate(headers)
+    ]
+    sep = "  ".join("─" * w for w in col_w)
+    header_line = "  ".join(h.ljust(col_w[i]) for i, h in enumerate(headers))
+
+    _console.print(header_line, highlight=False)
+    _console.print(sep, highlight=False)
     for filename, task, rate, date in rows:
         _console.print(
-            f"  {filename.ljust(col_w[0])}  {task.ljust(col_w[1])}  {rate.ljust(col_w[2])}  [dim]{date}[/]",
+            f"{filename.ljust(col_w[0])}  {task.ljust(col_w[1])}  {rate.ljust(col_w[2])}  {date}",
             highlight=False,
         )
     _console.print()

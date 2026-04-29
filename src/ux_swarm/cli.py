@@ -25,7 +25,7 @@ def _parse_arg_rows(block: str) -> list[tuple[str, str]]:
     for line in block.splitlines():
         if line.strip() in ("\b", "\x08", ""):
             continue
-        m = re.match(r"^(<\S+>)\s{2,}(.*)", line)
+        m = re.match(r'^(<\S+>|"[^"]+":)\s{2,}(.*)', line)
         if m:
             if current_name:
                 rows.append((current_name, " ".join(current_parts)))
@@ -55,6 +55,10 @@ class CliError(click.ClickException):
 class SwarmCommand(click.Command):
     """click.Command subclass help formatting."""
 
+    def __init__(self, *args, fields_section: str = "Fields", **kwargs):
+        self.fields_section = fields_section
+        super().__init__(*args, **kwargs)
+
     def _real_opts(self, ctx):
         """Return option help records excluding the bare help flag."""
         opts = []
@@ -75,11 +79,20 @@ class SwarmCommand(click.Command):
         usage_line = f"{ctx.command_path} {' '.join(pieces)}".strip()
 
         desc = ""
+        field_rows: list[tuple[str, str]] = []
         if self.help:
-            desc = inspect.cleandoc(self.help).split("\n\n")[0].replace("\n", " ").strip()
+            sections = inspect.cleandoc(self.help).split("\n\n")
+            desc = sections[0].replace("\n", " ").strip()
+            if len(sections) > 1:
+                field_rows = _parse_arg_rows(sections[1])
 
         opt_keys = [_fmt_meta(k) for k, _ in opts]
-        col = max([len(usage_line)] + [len(k) for k in opt_keys] + [_COL_MIN])
+        col = max(
+            [len(usage_line)]
+            + [len(k) for k in opt_keys]
+            + [len(k) for k, _ in field_rows]
+            + [_COL_MIN]
+        )
 
         formatter.write("\n")
         formatter.write("Usage:\n")
@@ -91,6 +104,10 @@ class SwarmCommand(click.Command):
         if opts:
             with formatter.section("Options"):
                 formatter.write_dl([(_fmt_meta(k).ljust(col), v) for k, v in opts], col_max=col)
+
+        if field_rows:
+            with formatter.section(self.fields_section):
+                formatter.write_dl([(k.ljust(col), v) for k, v in field_rows], col_max=col)
 
     def get_help(self, ctx):
         return super().get_help(ctx) + "\n"
