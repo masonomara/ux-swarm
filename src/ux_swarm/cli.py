@@ -95,11 +95,9 @@ class SwarmCommand(click.Command):
         )
 
         formatter.write("\n")
-        formatter.write("Usage:\n")
+        formatter.write(f"Usage: {usage_line}\n")
         if desc:
-            formatter.write(f"  {usage_line:<{col}}  {desc}\n")
-        else:
-            formatter.write(f"  {usage_line}\n")
+            formatter.write(f"\n{desc} \n")
 
         if opts:
             with formatter.section("Options"):
@@ -178,13 +176,12 @@ class SmartGroup(click.Group):
     def format_help(self, ctx, formatter):
         prog = ctx.command_path
         usage_pairs = [
-            (f"{prog} <target> <task> [options]", "shortcut to run swarm immediately"),
-            (f"{prog} [options] [command]",        "properly use all options and commands"),
+            (f"{prog} <target> <task> [options]", "Shortcut to run swarm immediately"),
+            (f"{prog} [options] [command]",        "Properly use all options and commands"),
         ]
 
         def _norm(s: str) -> str:
-            s = s.rstrip(".")
-            return s[:1].lower() + s[1:] if s else s
+            return s.rstrip(".")
 
         # Run options shown directly since `swarm <target> <task>` is the primary usage
         run_opt_rows = []
@@ -199,7 +196,7 @@ class SmartGroup(click.Group):
                             run_opt_rows.append((_fmt_meta(key), _norm(val)))
 
         group_opt_rows = [
-            (k, "display help for command" if "--help" in k else _norm(v))
+            (k, "Display help for this command" if "--help" in k else _norm(v))
             for p in self.get_params(ctx)
             if (rv := p.get_help_record(ctx)) is not None
             for k, v in [rv]

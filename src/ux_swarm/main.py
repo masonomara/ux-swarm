@@ -115,7 +115,7 @@ def _print_header() -> None:
                       "-V",
                       "--version",
                       message="\n%(version)s\n",
-                      help="output the version number")
+                      help="Output the version number")
 @click.pass_context
 def cli(ctx):
     if ctx.invoked_subcommand is None:
@@ -140,28 +140,30 @@ def cli(ctx):
 
 
 @cli.command(cls=SwarmCommand,
-             short_help="configure llm provider, model, and browser")
+             short_help="Configure your LLM provider, model, and browser")
 def config():
-    """configure your llm provider, api key, model, and chromium installation"""
+    """Configure your LLM provider, model, and browser"""
     _console.print()
-    _console.print("Configure ux-swarm\nPress Ctrl+C to cancel.\n",
-                   highlight=False)
+    _console.print(
+        "Configure your LLM provider, model, and browser\n[dim]Press Ctrl+C to cancel.[/]\n",
+        highlight=False)
     _print_config_status()
     if select("[green]?[/] [bold]Run setup wizard:[/]", ["Proceed", "Cancel"],
               echo=False) == "Proceed":
-        # Erase: "Configure ux-swarm" + "Press Ctrl+C..." + blank + 3 bullet lines + blank = 7 lines
+        # Erase: "Configure your LLM provider, model, and browser" + "Press Ctrl+C..." + blank + 3 bullet lines + blank = 7 lines
         sys.stdout.write("\x1b[7A\x1b[J")
         sys.stdout.flush()
-        _console.print("Configure ux-swarm\nPress Ctrl+C to cancel.\n",
-                       highlight=False)
+        _console.print(
+            "Configure your LLM provider, model, and browser\n[dim]Press Ctrl+C to cancel.[/]\n",
+            highlight=False)
         run_config_wizard()
 
 
-@cli.command(cls=SwarmCommand, short_help="display help for command")
+@cli.command(cls=SwarmCommand, short_help="Display help for a command")
 @click.argument("command", required=False, default=None, metavar="[command]")
 @click.pass_context
 def help(ctx, command):
-    """display help for a command"""
+    """Display help for a command"""
     if command:
         cmd = cli.commands.get(command)
         if cmd is None:
@@ -252,7 +254,8 @@ def _print_swarm_result(result: SwarmResult,
     if show_header:
         filename = Path(result.target).name
         _console.print()
-        _console.print(f"{filename}: {result.task}", highlight=False)
+        _console.print(f"[/bold][/underline]{filename}[/][/] {result.task}",
+                       highlight=False)
 
     _console.print(f"{rate_pct} of agents completed the task:",
                    highlight=False)
@@ -287,7 +290,7 @@ def _print_swarm_result(result: SwarmResult,
                 agent_mentions[fp] += 1
         top = agent_mentions.most_common(5)
         _console.print()
-        _console.print("Pain points:", highlight=False)
+        _console.print("Most common pain points:", highlight=False)
         _console.print()
         for point, count in top:
             pct = f"{count / total:.0%}"
@@ -484,7 +487,7 @@ def _run_browser(
 
 
 @cli.command(cls=SwarmCommand,
-             short_help="run a swarm against a url or screenshot")
+             short_help="Run a swarm against a URL or screenshot")
 @click.argument("target")
 @click.argument("task")
 @click.option(
@@ -492,7 +495,7 @@ def _run_browser(
     "--users",
     default=None,
     type=int,
-    help=f"number of simulated users [default: {RUN_DEFAULTS['default_users']}]"
+    help=f"Number of simulated users [default: {RUN_DEFAULTS['default_users']}]"
 )
 @click.option(
     "-m",
@@ -500,7 +503,7 @@ def _run_browser(
     default=None,
     type=int,
     help=
-    f"max steps per agent (browser only) [default: {RUN_DEFAULTS['max_steps']}]"
+    f"Max steps per agent (browser only) [default: {RUN_DEFAULTS['max_steps']}]"
 )
 @click.option(
     "-w",
@@ -508,19 +511,19 @@ def _run_browser(
     default=None,
     type=int,
     help=
-    f"viewport width in pixels (browser only) [default: {RUN_DEFAULTS['viewport_width']}]"
+    f"Viewport width in pixels (browser only) [default: {RUN_DEFAULTS['viewport_width']}]"
 )
 @click.option("-b",
               "--browser",
               is_flag=True,
-              help="show the browser window during the run")
+              help="Show the browser window during the run")
 @click.option("-v",
               "--verbose",
               is_flag=True,
-              help="show full tracebacks on error")
+              help="Show full tracebacks on error")
 @click.pass_context
 def run(ctx, target, task, users, max_steps, width, browser, verbose):
-    """run a swarm of synthetic users against a url or screenshot.
+    """Run a swarm of synthetic users against a URL or screenshot.
 
     \b
     <target>  url or domain to open in a browser, or a path to a screenshot image
@@ -556,14 +559,16 @@ def run(ctx, target, task, users, max_steps, width, browser, verbose):
         _run_screenshot(target, task, users, verbose, model_full)
 
 
-@cli.command(cls=SwarmCommand, short_help="manage user personas", fields_section="users.json fields")
+@cli.command(cls=SwarmCommand,
+             short_help="Manage user personas",
+             fields_section="users.json fields")
 @click.option("-e",
               "--edit",
               "write_config",
               is_flag=True,
-              help="write .swarm/users.json to disk for manual editing")
+              help="Write .swarm/users.json to disk for manual editing")
 def users(write_config):
-    """list and manage the synthetic user personas agents simulate during a run
+    """List and manage the synthetic user personas agents simulate during a run
 
 \b
 "label":         Display name shown for this user type during a run.
@@ -593,7 +598,7 @@ def users(write_config):
         highlight=False,
     )
     _console.print(
-        f"Navigate to [bold][link={link}][underline].swarm/users.json[/underline][/link][/bold] to edit users.\n",
+        f"[dim]Navigate to [bold][link={link}][underline].swarm/users.json[/underline][/link][/bold] to edit users.[/]\n",
         highlight=False,
     )
 
@@ -628,14 +633,16 @@ def users(write_config):
     _console.print()
 
 
-@cli.command(cls=SwarmCommand, short_help="view saved results", fields_section="results.json fields")
+@cli.command(cls=SwarmCommand,
+             short_help="View saved results",
+             fields_section="results.json fields")
 @click.option("-n",
               "--number",
               default=None,
               type=int,
-              help="show only the last n results")
+              help="Show only the last n results")
 def results(number):
-    """view saved swarm results from .swarm/results.json
+    """View saved swarm results from .swarm/results.json
 
 \b
 "timestamp":        ISO 8601 datetime when the run completed.
@@ -686,7 +693,7 @@ def results(number):
         highlight=False,
     )
     _console.print(
-        f"Navigate to [bold][link={link}][underline].swarm/results.json[/underline][/link][/bold] to view raw results.\n",
+        f"[dim]Navigate to [bold][link={link}][underline].swarm/results.json[/underline][/link][/bold] to view raw results.[/]\n",
         highlight=False,
     )
 
@@ -709,9 +716,9 @@ def results(number):
 
 
 @cli.command(cls=SwarmCommand,
-             short_help="view per-agent details from the last run")
+             short_help="View per-agent details from the last run")
 def expand():
-    """view a full per-agent breakdown of the most recent swarm result"""
+    """View a full per-agent breakdown of the most recent swarm result"""
     if not RESULTS_JSON.exists():
         _console.print("[dim]No results yet.[/]")
         return
