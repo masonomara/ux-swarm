@@ -22,3 +22,9 @@ build/
 .DS_Store
 *.log
 .env
+
+# Local workspace
+.claude/
+.docs/
+.notes/
+.swarm/

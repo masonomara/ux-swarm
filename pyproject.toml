@@ -19,3 +19,12 @@ build-backend = "uv_build"
 [project.scripts]
 ux-swarm = "ux_swarm.main:cli"
 swarm = "ux_swarm.main:cli"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
