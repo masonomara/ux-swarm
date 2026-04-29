@@ -1,6 +1,11 @@
 # ux-swarm
 
-<!-- badges: pypi version, npm version, python 3.11+ -->
+[![npm](https://img.shields.io/npm/v/ux-swarm)](https://www.npmjs.com/package/ux-swarm)
+[![PyPI](https://img.shields.io/pypi/v/ux-swarm)](https://pypi.org/project/ux-swarm/)
+[![Python](https://img.shields.io/badge/python-3.11+-blue)](https://www.python.org)
+[![License: MIT](https://img.shields.io/github/license/masonomara/ux-swarm)](https://github.com/masonomara/ux-swarm/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/masonomara/ux-swarm/ci.yml?branch=main)](https://github.com/masonomara/ux-swarm/actions/workflows/ci.yml)
+[![codecov](https://img.shields.io/codecov/c/github/masonomara/ux-swarm)](https://codecov.io/gh/masonomara/ux-swarm)
 
 Point a swarm of synthetic users at any URL or screenshot, give them a task, and see their completion rate and pain points.
 
@@ -20,7 +25,7 @@ Two modes: **browser swarm** sends each agent into a live Playwright session to 
 
 ### Authors
 
-Built by [@masonomara](https://github.com/masonomara) at [O'Mara Technology Design](https://omaratechnology.com).
+Built by [@masonomara](https://github.com/masonomara) at [O'Mara Technology](https://omaratechnology.com).
 
 ## Usage
 
