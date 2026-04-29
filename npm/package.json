@@ -1,0 +1,21 @@
+{
+  "name": "ux-swarm",
+  "version": "0.1.1",
+  "description": "Synthetic UX testing",
+  "bin": {
+    "swarm": "./bin/swarm.js",
+    "ux-swarm": "./bin/swarm.js"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "files": [
+    "bin/",
+    "postinstall.js"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": ["ux", "testing", "ai", "browser", "swarm"],
+  "license": "MIT"
+}
