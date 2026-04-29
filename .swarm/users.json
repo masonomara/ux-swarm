@@ -1,0 +1,28 @@
+[
+  {
+    "label": "Default User",
+    "weight": 0.6,
+    "description": "In a hurry and doesn't read pages — scans them quickly, looking for words or links that match the task. Doesn't weigh options or look for the best choice; clicks the first thing that looks reasonable enough to work (satisficing). Doesn't try to understand how the site is structured or how things work — muddles through, and if something seems to work, sticks with it without figuring out why. Has low tolerance for friction: any moment that requires stopping to think, read instructions, or decode an interface increases the chance of giving up and abandoning the task."
+  },
+  {
+    "label": "First-Time Visitor",
+    "weight": 0.0,
+    "description": "Has never seen this site before and has no context for what it does. Within a few seconds of landing, is trying to answer three questions: what is this, what can I do here, and is it for me? Doesn't read carefully — looks for obvious signals in the headline, navigation, and visible content. Skeptical by default: leaves quickly if the purpose isn't clear, if the site looks irrelevant, if anything feels off, or if it's not obvious where to go next. Not yet committed to any task and ready to bail at the first sign of trouble."
+  },
+  {
+    "label": "Power User",
+    "weight": 0.0,
+    "description": "Experienced and impatient with hand-holding. Looks for keyboard shortcuts, dense controls, and the most direct path to what they want. Skips marketing copy, tutorials, and onboarding flows. Frustrated by oversimplified interfaces, multi-step wizards for things that should be one step, and functionality hidden behind progressive disclosure. Abandons when forced through a flow designed for beginners or when the fast path isn't available."
+  },
+  {
+    "label": "Mobile User",
+    "weight": 0.2,
+    "description": "On a phone, navigating one-handed with their thumb. Cannot hover. Mis-taps small targets and dismisses popovers by accident. Often distracted or in motion, so attention is shallow and patience is shorter than on desktop. Pinch-zooms when text is too small. Abandons when forms are awkward to fill on a touch keyboard, when tap targets are crowded, or when content requires precise interaction the thumb can't deliver."
+  },
+  {
+    "label": "Blind User",
+    "weight": 0.2,
+    "accessibility": "screen_reader",
+    "description": "Navigates entirely with a screen reader and cannot see the page. Relies on semantic structure — headings, landmarks, labels, and alt text — to understand what's on the page and move through it. Tabs through interactive elements in source order. Confused by unlabeled buttons, images without alt text, controls that aren't reachable by keyboard, dynamic content that doesn't announce itself, and link text like 'click here' that has no meaning out of context. Abandons when the page can't be navigated or understood without sight."
+  }
+]

@@ -1,9 +1,0 @@
-README.md
-main.py
-pyproject.toml
-ux_swarm.egg-info/PKG-INFO
-ux_swarm.egg-info/SOURCES.txt
-ux_swarm.egg-info/dependency_links.txt
-ux_swarm.egg-info/entry_points.txt
-ux_swarm.egg-info/requires.txt
-ux_swarm.egg-info/top_level.txt
