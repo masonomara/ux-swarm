@@ -192,10 +192,10 @@ async def run_browser_agent(
     actions_taken: list[str] = []
     urls_visited: list[str] = []
     all_friction: list[str] = []
-    completed = False
-    abandoned = False
+    status = "timeout"
     abandonment_reason: str | None = None
     comment = ""
+    last_thinking = ""
     total_in_tok = 0
     total_out_tok = 0
     total_cost = 0.0
@@ -282,6 +282,7 @@ async def run_browser_agent(
             element_index = step_data.element_index
             text_value = step_data.text
             thinking = step_data.thinking
+            last_thinking = thinking
 
             index_str = str(element_index) if element_index is not None else ""
             detail = f"[{index_str}] {text_value or ''}".strip()
@@ -293,12 +294,12 @@ async def run_browser_agent(
 
             if action in BROWSER_TERMINAL_ACTIONS:
                 if action == "done":
-                    completed = True
+                    status = "completed"
                     comment = thinking
                     if on_step:
                         on_step("complete", thinking[:120], steps_taken)
                 else:
-                    abandoned = True
+                    status = "abandoned"
                     abandonment_reason = thinking
                     comment = thinking
                     if on_step: on_step("failed", thinking[:120], steps_taken)
@@ -364,11 +365,13 @@ async def run_browser_agent(
 
     duration = round(time.monotonic() - start_time, 2)
 
+    if status == "timeout":
+        comment = last_thinking
+
     agent_result = AgentResult(
         agent_index=agent_index,
         user_type=user_type.label,
-        completed=completed,
-        abandoned=abandoned,
+        status=status,
         abandonment_reason=abandonment_reason,
         friction_points=all_friction,
         comment=comment,

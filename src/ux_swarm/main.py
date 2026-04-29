@@ -270,7 +270,7 @@ def _print_swarm_result(result: SwarmResult,
         label_done: dict[str, int] = {}
         for r in result.individual_results:
             label_total[r.user_type] = label_total.get(r.user_type, 0) + 1
-            if r.completed:
+            if r.status == "completed":
                 label_done[r.user_type] = label_done.get(r.user_type, 0) + 1
         col = max(len(l) for l in result.user_breakdown)
         for label, rate in result.user_breakdown.items():
@@ -365,7 +365,7 @@ def _run_screenshot(
                 if agent_result is not None:
                     comment = agent_result.comment or agent_result.abandonment_reason or ""
                     agent_states[agent_result.agent_index] = (
-                        "complete" if agent_result.completed else "failed",
+                        "complete" if agent_result.status == "completed" else "failed",
                         1,
                         comment,
                     )
@@ -744,7 +744,7 @@ def expand():
     for r in result.individual_results:
         label_counts[r.user_type] += 1
         numbered = f"{r.user_type} {label_counts[r.user_type]}"
-        color = "green" if r.completed else "red"
+        color = {"completed": "green", "timeout": "yellow", "abandoned": "red"}.get(r.status, "red")
         comment = r.comment or ""
         _console.print(f"[{color}]{numbered}[/] - {comment}", highlight=False)
         if r.actions_taken:

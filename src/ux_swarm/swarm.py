@@ -51,8 +51,9 @@ async def run_screenshot_swarm(
             agent_result = AgentResult(
                 agent_index=idx,
                 user_type=user_type.label,
-                completed=decision.completed,
-                abandoned=decision.abandoned,
+                status=("completed" if decision.completed
+                        else "abandoned" if decision.abandoned
+                        else "timeout"),
                 abandonment_reason=decision.abandonment_reason,
                 friction_points=decision.friction_observed,
                 comment=decision.comment,
@@ -158,13 +159,13 @@ def _aggregate(
                 "Check your API key and model configuration.")
         raise CliError(f"All {num_agents} agents failed. {hint}")
 
-    completion_rate = sum(1 for r in results if r.completed) / n
+    completion_rate = sum(1 for r in results if r.status == "completed") / n
     moe = 1.96 * math.sqrt(completion_rate *
                            (1 - completion_rate) / n) if n > 1 else 0.0
 
     by_label: dict[str, list[bool]] = {}
     for r in results:
-        by_label.setdefault(r.user_type, []).append(r.completed)
+        by_label.setdefault(r.user_type, []).append(r.status == "completed")
     user_breakdown = {
         label: sum(outcomes) / len(outcomes)
         for label, outcomes in by_label.items()
@@ -177,7 +178,7 @@ def _aggregate(
 
     avg_steps = 0.0
     if mode == "browser":
-        successful_steps = [r.steps_taken for r in results if r.completed]
+        successful_steps = [r.steps_taken for r in results if r.status == "completed"]
         avg_steps = sum(successful_steps) / len(
             successful_steps) if successful_steps else 0.0
 
