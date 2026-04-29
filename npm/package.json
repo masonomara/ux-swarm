@@ -1,6 +1,6 @@
 {
   "name": "ux-swarm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Synthetic UX testing",
   "bin": {
     "swarm": "./bin/swarm.js",
@@ -11,7 +11,8 @@
   },
   "files": [
     "bin/",
-    "postinstall.js"
+    "postinstall.js",
+    "README.md"
   ],
   "engines": {
     "node": ">=16"
