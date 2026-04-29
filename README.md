@@ -11,11 +11,11 @@ Point a swarm of synthetic users at any URL or screenshot, give them a task, and
 
 ## Highlights
 
-- **Instant testing** — simulate 20 users in under a minute; no scheduling, no interviews
-- **Repeatable** — run before and after a deploy to track whether completion rate improved
-- **Real signal** — not a replacement for user testing, but genuine findings at a fraction of the cost and time
-- **Customizable personas** — define your own user types and weight the swarm to match your real audience
-- **Accessibility included** — screen reader personas ship out of the box
+- **Instant testing** - simulate 20 users in under a minute; no scheduling, no interviews
+- **Repeatable** - run before and after a deploy to track whether completion rate improved
+- **Real signal** - not a replacement for user testing, but genuine findings at a fraction of the cost and time
+- **Customizable personas** - define your own user types and weight the swarm to match your real audience
+- **Accessibility included** - screen reader personas ship out of the box
 
 ## Overview
 
@@ -29,7 +29,7 @@ Built by [@masonomara](https://github.com/masonomara) at [O'Mara Technology](htt
 
 ## Usage
 
-<!-- terminal recording placeholder -->
+![demo](docs/demo.gif)
 
 ```bash
 # browser swarm — live URL
