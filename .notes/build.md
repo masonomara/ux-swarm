@@ -81,11 +81,11 @@ I set up two entry point scripts in `pyproject.toml`:
 
 ```toml
 [project.scripts]
-ux-swarm = "main:cli"
-swarm = "main:cli"
+ux-swarm = "ux_swarm.main:cli"
+swarm = "ux_swarm.main:cli"
 ```
 
-and then installed in editable mode:
+Then installed in editable mode:
 
 ```bash
 uv pip install -e .
@@ -114,25 +114,19 @@ requires = ["uv_build>=0.11.7,<0.12.0"]
 build-backend = "uv_build"
 ```
 
-```toml
-[project.scripts]
-ux-swarm = "ux_swarm.main:cli"
-swarm = "ux_swarm.main:cli"
-```
-
 2. Moved `main.py` and added `__init__.py`:
 
 ```
 main.py  →  src/ux_swarm/main.py
 ```
 
-The naming feels weird because Python has two conventions that don't match: folders and imports use underscores (`ux_swarm`), install names and CLI commands use hyphens (`ux-swarm`, `swarm`).
+The naming feels odd because Python has two conventions that don't match: folders and imports use underscores (`ux_swarm`), install names and CLI commands use hyphens (`ux-swarm`, `swarm`).
 
 ## Recap — Done with Scaffolding
 
 - `UV` is set up for package management
 - `Click` is wired up
-- `run` command is working implicitly, no need to type it in
+- `run` command works implicitly - no need to type it
 - Argument surfaces defined: `target`, `task`, plus `--users`, `--max-steps`, `--viewport`, `--verbose`
 - `swarm` and `ux-swarm` are installed as real CLI commands via `pyproject.toml` + `uv pip install -e .`
 - Folder structure is aligned with UV best practices
@@ -141,27 +135,27 @@ The naming feels weird because Python has two conventions that don't match: fold
 
 I installed Pydantic with `uv add pydantic` because the app receives responses from LLM models and external APIs — data we don't control. Pydantic catches malformed or unexpected types at runtime, at the boundary where that data enters the system.
 
-`BaseModel` is the type blueprint. Each field and its type is declared at runtime, then Pydantic enforces them at the moment an object is created.
+`BaseModel` is the type blueprint. Each field and its type is declared at class definition, then Pydantic enforces them at the moment an object is created.
 
-Pydantic library provides `model_validate()` for parsing raw JSON into a proper Python object, and `model_json_schema()` for sending the schema to the LLM so it knows exactly what shape to return.
+Pydantic provides `model_validate()` for parsing raw JSON into a proper Python object, and `model_json_schema()` for sending the schema to the LLM so it knows exactly what shape to return.
 
-The data shapes will evolve and that's ok. What matters now is that we now have the "three systems of governance" in place — the docs, the models, and the code. Each one describes the same thing at a different level. We'll eventually add tests so all three stay in sync.
+The data shapes will evolve and that's fine. What matters now is that we have the three systems of governance in place — the docs, the models, and the code. Each one describes the same thing at a different level. Tests come later to keep all three in sync.
 
 Models live in `src/ux_swarm/models.py`.
 
 ## Config Wizard
 
-Started with adding two dependencies: **Rich** for stylized terminal output (colored text, spinners, etc.) and **Playwright** to check whether the Chromium browser binary is installed, and because it's used during `run`.
+Started with two dependencies: **Rich** for styled terminal output (colored text, spinners, etc.) and **Playwright** to check whether the Chromium browser binary is installed, since it's also used during `run`.
 
-The first thing I built was the menu navigation function. It's complex enough — and reusable enough — that it lives in its own `menu.py` file.
+The first thing I built was the menu navigation function. It's complex and reusable enough to live in its own file: `menu.py`.
 
-Then I built out `config.py` with the provider list, config handling, and error handling. Once the basics were in place, I added a function that dynamically fetches the available model list from Anthropic, OpenAI, DeepSeek, and Google, so the wizard always shows current models rather than a hardcoded list.
+Then I built out `config.py` with the provider list, config handling, and error handling. Once the basics were in place, I added a function that dynamically fetches the available model list from Anthropic, OpenAI, and Google so the wizard always shows current models rather than a hardcoded list.
 
-Lastly in config, I set up save and load functions for the local disk, and a Playwright check function.
+Lastly, I set up save and load functions for the local disk and a Playwright check function.
 
-After a UX pass, a few things worth noting:
+A few things worth noting after a UX pass:
 
-Playwright (the Python package) is always installed when a user downloads ux-swarm from PyPI. Because it's listed as a dependency, pip installs it automatically. Chromium is not. Chromium is a browser binary, not a Python package, so it doesn't come along for the ride. Users have to install it separately via `playwright install chromium`, which is why the config wizard prompts them to do it.
+Playwright (the Python package) is always installed when a user downloads ux-swarm from PyPI — it's listed as a dependency, so pip installs it automatically. Chromium is not. Chromium is a browser binary, not a Python package, so it doesn't come along for the ride. Users have to install it separately via `playwright install chromium`, which is why the config wizard prompts them to do it.
 
 Because of this, I only expect users to have trouble with Chromium, not Playwright itself. That's why the wizard combines both into a single "Playwright status" step rather than separating them — Playwright is the recognizable name, and Chromium is its add-on.
 
@@ -169,92 +163,98 @@ DeepSeek doesn't support vision models, so it was removed from the project entir
 
 ## Agent Setup
 
-The first consideration for the agent was image encoding. LLM APIs won't accept a file path, so we have to encode the image before sending it to the API. `_load_image` reads and encodes the image, then tells the API what format it's in with `_MIME_TYPES` + `_media_type`.
+The first consideration for the agent was image encoding. LLM APIs won't accept a file path, so we have to encode the image before sending it to the API. `_load_image` reads and encodes the image, then tells the API what format it's in with `_MIME_TYPES` and `_media_type`.
 
-The second consideration was how the agent was going to be instructed. Every agent call has two turns. The first is the system prompt taht is set once and defines the model's role, rules, and output format - standing instructions that frame every response. The second turn is the actual request: the task plus the image.
+The second consideration was how the agent would be instructed. Every agent call has two parts. The first is the system prompt — set once, it defines the model's role, rules, and output format. The second is the actual request: the task plus the image.
 
-I kept them separated because the first is constant — it applies to every agent the same way. The second is per-call — it's what the agent is being asked to do right now.
+I kept them separate because the system prompt is constant — it applies to every agent the same way. The request is per-call — it's what the agent is being asked to do right now.
 
-Then I wrote separate request formatters for Anthropic and OpenAI/Gemini to translate everything into each provider's expected format, send the request, and extract the response.
+Then I wrote separate request formatters for Anthropic and OpenAI/Gemini to translate everything into each provider's expected format, send the request, and extract the response. Agent logic lives in `src/ux_swarm/agent.py`.
 
-## Multi Agent Setup
+## Multi-Agent Setup
 
-Started with setting up the user types in `personas.py`, removed the default hardcoded persona we had wired up in main. `personas.py` also handles weight distribution and reading the `.swarm/users.json` file. It exists as its own file to separate everything "user types" related.
+I started by setting up user types in `personas.py`, removing the default hardcoded persona that had been wired up in `main.py`. `personas.py` also handles weight distribution and reads the `.swarm/users.json` file. It exists as its own file to keep everything user-type-related together.
 
-Then, I worked on removing the custom request formatters for LiteLLM in `agents.py`. We are doing a single uniform task over multiple providers, no need for a channel adapter for different models when there's a thrid-party service that can manage them all. This makes edge cases such as Rate Limit errors all uniformly handled, normalized. Way less maintence unless LiteLLm itself breaks, it is now a single point of failue. Lets make sure that LiteLLM stays siloed.
+Then I replaced the custom request formatters with LiteLLM in `agent.py`. We're running a single uniform task across multiple providers, so there's no need for custom channel adapters when a third-party service can manage them all. This normalizes edge cases like rate limit errors. LiteLLM is now a single point of failure, so we keep it siloed.
 
-In `swarm.py`, TaskGroup makes sure all N agents are in flight, then we wait for all of them to complete before moving on to the next step. We have a silent agent drop setup so if a single agent throws an error like a network blip or malformed response, we catch it and skip appending a result for that agent. We don't crash the whole run. We do have an `_aggregate` function in case every single agent fails, for a clean error message.
+In `swarm.py`, `TaskGroup` sends all N agents in flight simultaneously, then waits for all of them to complete before moving on. We have silent agent drop: if a single agent throws an error — a network blip or malformed response — we catch it and skip appending a result for that agent. The whole run doesn't crash. We have an `_aggregate` function that fires if every agent fails, for a clean error message.
 
-We had to add `asyncio.Semaphore` to cap concurrent API calls so all agents wouldn't send their requests at the same moment and saturate the rate limit. The semaphore makes sure only 5 agents can be working at once. We also added random jitter to retry delays — without it, all agents that hit a rate limit would wait the same fixed delay and retry simultaneously, immediately hitting the limit again. This is called the thundering herd problem, jitter staggers them so they don't pile up.
+We added `asyncio.Semaphore` to cap concurrent API calls so all agents don't send requests simultaneously and saturate the rate limit. The semaphore holds only 5 agents working at once. We also added random jitter to retry delays — without it, all agents that hit a rate limit would wait the same fixed delay and retry simultaneously, immediately hitting the limit again. This is the thundering herd problem. Jitter staggers the retries so they don't pile up.
 
 The swarm coordinator in `swarm.py` is completely isolated from the terminal. It accepts an optional `on_agent_done(done, total)` callback. `main.py` passes in the function that updates the live display. This keeps `swarm.py` output-agnostic — it could run in a web server, a test, or a CI pipeline without modification.
 
-When there was one agent, showing its individual comment, target element, and reasoning made sense. With 20 agents, we want a single number that tells you how the flow performed. We switched to completion rate, margin of error, and the top friction points ranked by frequency. The completion rate is a proportion (X out of N agents completed the task). `1.96 * sqrt(p*(1-p)/n)` gives the 95% confidence interval for a proportion. The 1.96 is the z-score for 95%. This means if you see "75% ±9%", the true rate is likely between 66% and 84%.
+When there was one agent, showing its individual comment, target element, and reasoning made sense. With 20 agents, we want a single number that tells you how the flow performed. We switched to completion rate, margin of error, and the top friction points ranked by frequency. The completion rate is a proportion (X out of N agents completed the task). `1.96 * sqrt(p*(1-p)/n)` gives the 95% confidence interval for a proportion — the 1.96 is the z-score for 95%. If you see "75% ±9%", the true rate is likely between 66% and 84%.
 
-Each agent reports a list of friction points as free text. We mgiht look into consolidating this further at some pont, but for now `Counter` counts how many times each unique string appears and `.most_common(5)` returns the top five.
+Each agent reports a list of friction points as free text. `Counter` counts how many times each unique string appears and `.most_common(5)` returns the top five.
 
-We are storign the results in an append-only array in `results.json` - an array of all past runs - instead of individual timestamped files. A single json file means reading everything is one `json.loads` call. Simple to implement, simple to read, simple to export.
+Results are stored in an append-only array in `results.json` — an array of all past runs — rather than individual timestamped files. A single JSON file means reading everything is one `json.loads` call. Simple to implement, simple to read, simple to export.
 
-## Pain point Aggregator
+## Pain Point Aggregator
 
-We had a lot of pain points showing almost exactly the same results, just one character or word difference. i created a light LLM call in `swarm.py` that helps aggregate pain points into one pain point to avoid redundnancy and noise.
+A lot of friction points were showing almost exactly the same result, just one character or word different. I added a lightweight LLM call in `swarm.py` that aggregates similar pain points into one to avoid redundancy and noise.
 
 ## Browser Mode
 
-We completed screenshot mode - one LLM call per agent with vision inference, one decions, done. Screenshot mode is lightweight and works. Browser mdoe is a bit mroe complicated - it involves a playwright loop where each agent opens up a chromium browser, navigates step by step to compelt ethe task, take sa screenshot after each action, calls teh LLM again until etiehr it recods `done`/`give_up` or budget runs out
+Screenshot mode was complete: one LLM call per agent with vision inference, one decision, done. Lightweight and working. Browser mode is more involved — it's a Playwright loop where each agent opens a Chromium browser, navigates step by step to complete the task, takes a screenshot after each action, then calls the LLM again until it records `done` or `give_up`, or until the step budget runs out.
 
-Brwoser mdoe is the richer verison, it has action history, URLS visitied, wall-clock duration, and step count - but at a cost - actual cost and runtime are higher than screenshot mode.
+Browser mode is the richer version: it has action history, URLs visited, wall-clock duration, and step count. But it comes at a cost — actual API cost and runtime are both higher than screenshot mode.
 
-The first problem was that browser mode needs two independent resource limits vs one for screenshot mode, so we created two semaphores - browser mode needs to watch the Chromium context limimit, then LLM call limits. browser_sem`: limits open browser contexts by holdng the process in memoery for the full run, `llm_sem`: limits concurrent LLM API calls. They operate seperate
+Browser mode needs two independent resource limits. We created two semaphores: `browser_sem` limits open browser contexts (held in memory for the full run), and `llm_sem` limits concurrent LLM API calls. They operate independently.
 
-### Indexed Element Extraction
+### The Browser Agent Loop
 
-- Original design: LLM invents CSS/`text=` selectors from scratch → hallucinates selectors that don't exist or match the wrong element
-- Current design: before each LLM call, extract all visible interactive elements from the page via `page.evaluate()` and assign each a numeric index
-- LLM receives a numbered list (`[0] BUTTON "Sign Up"`, `[1] INPUT type="email"`, …) and returns `element_index: 3` — a number from the list it was given
-- Playwright locator pre-built as `page.locator(INTERACTIVE_SELECTOR).nth(raw_index)` — dispatch is O(1), no second DOM query
-- `raw_index` tracks position in the full `querySelectorAll` result (including invisible elements); `logical_index` is what the LLM sees — they differ when invisible elements are skipped
-- Visibility check: `getBoundingClientRect()` — non-zero width/height means visible; same check Playwright uses internally
-- Capped at 50 elements (`ELEMENT_CAP`); LLM scrolls to see more
-- Only visible elements are included; this keeps the list short and focused on what the user can actually interact with
-- Eliminated the need for `aria_snapshot()` — screenshot provides visual context, indexed list provides actionable references
+The core of browser mode is a stateful step loop inside `browser_agent.py`. Each iteration takes a screenshot, extracts interactive elements from the DOM, calls the LLM with the screenshot plus element list plus recent action history, executes the returned action via Playwright, then repeats. The loop exits when the LLM returns `done` or `give_up`, or when the step budget runs out (`time_out`).
 
-### BrowserStep Model Design
+The LLM's `thinking` field is placed first in the `BrowserStep` JSON schema on purpose — LLMs generate tokens left to right, so chain-of-thought before `action` means the model reasons before committing to a move. The rest of the model is flat (`action`, `element_index`, `text`, `friction_observed`, `success`). Earlier drafts split intent and terminal verdict into two separate models, but collapsing them into one removed a lot of unnecessary overhead.
 
-- Flat model: `thinking`, `action`, `element_index`, `text`, `friction_observed`, `success` — one object per step
-- Earlier drafts had separate `BrowserAction` + `BrowserDecision` models (action intent vs. terminal verdict) — collapsed into one to remove the two-object pattern
-- `action` typed as `str`, not `Literal[...]` — valid actions enforced at runtime via `ALL_BROWSER_ACTIONS` frozenset; keeps model open as action set evolves without a Pydantic schema change
-- `thinking` field comes first in the JSON schema — LLMs generate JSON left-to-right; chain-of-thought before `action` means the model reasons before committing
-- `element_index: int | None` — no default; Pydantic errors if the field is missing entirely, surfacing LLM misbehavior immediately
-- `success: bool | None` — `True` for done, `False` for give_up, `None` for all other actions; collapses terminal decision into the same model
+### Technical Notes
 
-### What Counts as Friction
+Most of this was engineered by Claude Code with me following along doing manual tests. I don't want to present like I fully understand or made the decisions on what is going on, but the following subsections describe what was built that is a bit beyond my scope of involvement in this project:
 
-- Friction comes from the LLM's `friction_observed` field — observations the synthetic user makes while navigating
-- Raw Playwright exception strings (`TimeoutError`, element not found) are not friction — they're infrastructure noise
-- If an action fails, the exception is caught, the agent continues, and the LLM sees the unchanged page on the next step
-- Mixing Playwright internals into the friction list would contaminate the UX signal with implementation details
+#### Indexed Element Extraction
 
-### Unified Display
+The original approach asked the LLM to invent CSS selectors — it hallucinated selectors constantly. The fix: before each LLM call, extract all visible interactive elements from the page via `page.evaluate()` and assign each a numeric index. The LLM receives a numbered list (`[0] BUTTON "Sign Up"`, `[1] INPUT type="email"`) and returns a number from that list. Playwright then dispatches the action with `page.locator(INTERACTIVE_SELECTOR).nth(raw_index)` — no second DOM query.
 
-- Screenshot and browser modes share one `_build_display()` function
-- `max_steps=None` → screenshot mode, no step counter column in the table
-- `max_steps=int` → browser mode, step counter column added
-- Per-agent `Table` (Rich) with columns: label, status, step (browser only), detail
-- `_STATUS_COLORS` dict maps status strings to Rich color names; `"waiting"` is dim, `"complete"` is green, `"failed"` is red, active states are cyan/yellow/blue
-- `agent_labels` dict pre-built before the run — all agents labelled up front so the full table renders immediately, not as agents complete
+Two indexes exist internally: `raw_index` (position in the full `querySelectorAll` result, including invisible elements) and `logical_index` (what the LLM sees — capped at 50, invisible elements skipped). The LLM references logical; the agent executes by raw. Visibility is checked via `getBoundingClientRect()` — non-zero width and height means visible, the same check Playwright uses internally.
 
-### Mode Routing in `main.py`
+#### What Counts as Friction
 
-- `run()` command routes to `_run_screenshot()` or `_run_browser()` based on whether target is a URL or file path
-- Both helpers handle their own display setup, callbacks, `asyncio.run()`, `_save_result()`, and `_print_swarm_result()` — `run()` itself is just config loading + routing
-- `_save_result()` extracted from `run()` so both modes share the same append-only `results.json` write
+Friction comes from the LLM's `friction_observed` field — subjective observations the synthetic user reports while navigating. Raw Playwright exception strings (`TimeoutError`, element not found) are explicitly not friction. If an action fails, the exception is swallowed, the agent loops, and the LLM sees the unchanged page on the next step. Mixing Playwright internals into the friction list would contaminate UX signal with infrastructure noise.
 
-### Bare Domain Resolution
+#### Accessibility Mode
 
-- `_resolve_target()` in `main.py`: normalises target before routing — prepends `https://` to bare domains (`masonomara.com` → `https://masonomara.com`)
-- Checks file existence first — if the path exists on disk, it's a screenshot regardless of whether it looks like a domain
-- `SmartGroup._try_reconstruct()` in `cli.py`: handles bare domains at the CLI parsing layer so `swarm masonomara.com find the about page` works without quoting
-- Also fixes unquoted multi-word tasks for full URLs (`swarm https://example.com find the button` now works)
-- `_build_run_args()` helper extracted from the image-path reconstruction logic — shared by URL, bare domain, and image path cases
-- Domain pattern matches: `masonomara.com`, `sub.domain.co.uk`, `localhost:3000`, `192.168.1.1:8080`, paths (`masonomara.com/about`)
+Browser agents have a second rendering path for screen reader personas. When `user_type.accessibility == "screen_reader"`, the agent skips the screenshot entirely, passes only the element list, and restricts available actions to keyboard-only (`press_key`, `type`, `done`, `give_up`). The system prompt is also swapped for a screen-reader-specific version that explains no visual layout is available.
+
+This was worth building because testing keyboard-only navigation is a real accessibility audit need, and the swarm already knows each agent's persona — adding the mode switch required almost no additional plumbing.
+
+#### CLI Parsing and Bare Command Shortcuts
+
+Standard Click requires subcommands to be named explicitly: `swarm run example.com "find prices"`. Getting `swarm example.com find prices` to work — no `run`, no quotes around a multi-word task — required a custom `SmartGroup` class in `cli.py` that intercepts raw `argv` before Click's parser sees it.
+
+`SmartGroup.parse_args()` inspects the argument list, detects whether the first token looks like a URL, bare domain, or image path, and silently prepends `run` if so. It also reconstructs multi-word tasks that would otherwise be split by the shell. `_resolve_target()` in `main.py` handles the second half: normalizing bare domains to `https://` URLs and distinguishing file paths from domain names (file existence check runs first).
+
+#### Config Architecture
+
+Config lives in two places: `~/.config/ux-swarm/config.json` (global, shared across projects) and `.swarm/config.json` (local, per-project). Local overrides global, so teams can commit a shared model choice while individuals keep their own API keys out of the repo.
+
+The model list shown in the config wizard is fetched live from each provider's API using stdlib `urllib` — no hardcoded list. This means the wizard always shows current models and catches bad API keys immediately. Provider-specific filtering is applied (OpenAI skips fine-tunes, Gemini skips embedding models). API keys are written to the corresponding environment variables at runtime so LiteLLM can find them without any extra wiring.
+
+## Designing the Interface
+
+I spent some time in Figma copying and pasting terminal output, then read [10 Design Principles for Delightful CLIs](https://www.atlassian.com/blog/it-teams/10-design-principles-for-delightful-clis) and applied ideas from the article and examples to make the interfaces — especially the help screens — more intuitive. I showed it to a few users and got really positive feedback.
+
+## New Users
+
+I added accessibility options and a badge for users who are using accessibility tools (a11y). I also added default personas that people can use as templates.
+
+## Uploading to PyPI and NPM
+
+This CLI tool was built for PyPI upload. For NPM, I wrapped it in a Python wrapper so users operating on Node can also use it. Both have successfully been downloadable and usable — now on to the README so I can share these packages before building them into a much deeper app.
+
+## The README
+
+This is what 90% of people will look at when deciding whether to use the packages or not — I need to put a lot of care into this.
+
+This is going to be an open-source repo, a PyPI package, and an NPM package, so I need either a great README for all three or separate READMEs for each.
+
+I decided to follow this template: https://github.com/banesullivan/README/blob/main/TEMPLATE.md
