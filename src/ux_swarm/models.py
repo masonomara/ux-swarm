@@ -35,7 +35,7 @@ class AgentResult(BaseModel):
     """Output of one agent, shared by both modes."""
     agent_index: int
     user_type: str
-    status: Literal["completed", "abandoned", "timeout"]
+    status: Literal["completed", "abandoned", "timeout", "error"]
     abandonment_reason: str | None
     friction_points: list[str]
     comment: str
