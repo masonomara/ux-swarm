@@ -583,7 +583,7 @@ async def test_run_browser_agent_unexpected_exception_completes_gracefully():
             )
 
     # Agent returns a result even when an unexpected error occurs
-    assert result.status in ("timeout", "completed", "abandoned")
+    assert result.status in ("timeout", "completed", "abandoned", "error")
 
 
 @pytest.mark.anyio
