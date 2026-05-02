@@ -35,3 +35,6 @@ htmlcov/
 .docs/
 .notes/
 .swarm/
+
+# Web
+web/node_modules/
