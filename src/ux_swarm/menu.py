@@ -7,11 +7,10 @@ console = Console()
 
 
 class GoBack(Exception):
-    """Raised by select() when the user presses Escape to go back."""
+    pass
 
 
 def navigate(key: str, selected_index: int, max_index: int) -> int:
-    """Return the new index after an up/down arrow keypress, clamped to [0, max_index]."""
     if key in ("\x1b[A", "\x1bOA"):
         return max(0, selected_index - 1)
     if key in ("\x1b[B", "\x1bOB"):
@@ -23,12 +22,11 @@ def select(label: str,
            options: list[str],
            default_index: int = 0,
            echo: bool = True) -> str:
-    """Display an arrow-key menu, redrawing in-place. Collapses to a single line on commit."""
     selected_index = default_index
 
     def _draw() -> int:
         lines = [
-            f"{label}",
+            label,
             *[
                 f"{'[cyan][bold]›[/][/]' if i == selected_index else ' '} {'[cyan]' + opt + '[/]' if i == selected_index else opt}"
                 for i, opt in enumerate(options)
