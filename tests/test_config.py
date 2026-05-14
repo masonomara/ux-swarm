@@ -12,16 +12,18 @@ import ux_swarm.config as cfg
 from ux_swarm.config import (
     PROVIDERS,
     ProviderAuthError,
-    _install_chromium,
-    _wizard_step_model,
-    _wizard_step_playwright,
-    _wizard_step_provider,
-    run_config_wizard,
-    _install_playwright,
     fetch_provider_models,
     load_config,
     playwright_state,
     save_config,
+)
+from ux_swarm.wizard import (
+    _install_chromium,
+    _install_playwright,
+    _wizard_step_model,
+    _wizard_step_playwright,
+    _wizard_step_provider,
+    run_config_wizard,
 )
 
 
@@ -298,7 +300,7 @@ def test_playwright_state_not_importable(monkeypatch):
 
 def test_wizard_step_provider_sets_state():
     state: dict = {}
-    with patch("ux_swarm.config.select", return_value="Anthropic"):
+    with patch("ux_swarm.wizard.select", return_value="Anthropic"):
         _wizard_step_provider(state)
     assert state["provider_key"] == "anthropic"
     assert state["provider_name"] == "Anthropic"
@@ -306,22 +308,22 @@ def test_wizard_step_provider_sets_state():
 
 def test_wizard_step_provider_openai():
     state: dict = {}
-    with patch("ux_swarm.config.select", return_value="OpenAI"):
+    with patch("ux_swarm.wizard.select", return_value="OpenAI"):
         _wizard_step_provider(state)
     assert state["provider_key"] == "openai"
 
 
 def test_wizard_step_model_sets_state():
     state = {"model_options": ["anthropic/claude-3-5-sonnet-20241022", "anthropic/claude-3-haiku-20240307"], "model": ""}
-    with patch("ux_swarm.config.select", return_value="anthropic/claude-3-5-sonnet-20241022"):
+    with patch("ux_swarm.wizard.select", return_value="anthropic/claude-3-5-sonnet-20241022"):
         _wizard_step_model(state)
     assert state["model"] == "anthropic/claude-3-5-sonnet-20241022"
 
 
 def test_wizard_step_playwright_already_installed():
     state: dict = {}
-    with patch("ux_swarm.config.playwright_state", return_value=(True, True)):
-        with patch("ux_swarm.config.select") as mock_select:
+    with patch("ux_swarm.wizard.playwright_state", return_value=(True, True)):
+        with patch("ux_swarm.wizard.select") as mock_select:
             _wizard_step_playwright(state)
     assert state["playwright_ok"] is True
     mock_select.assert_not_called()
@@ -329,9 +331,9 @@ def test_wizard_step_playwright_already_installed():
 
 def test_wizard_step_playwright_installs_when_missing(monkeypatch, tmp_path):
     state: dict = {}
-    with patch("ux_swarm.config.playwright_state", side_effect=[(True, False), (True, True)]):
-        with patch("ux_swarm.config.select", return_value="Proceed"):
-            with patch("ux_swarm.config._install_chromium") as mock_install:
+    with patch("ux_swarm.wizard.playwright_state", side_effect=[(True, False), (True, True)]):
+        with patch("ux_swarm.wizard.select", return_value="Proceed"):
+            with patch("ux_swarm.wizard._install_chromium") as mock_install:
                 _wizard_step_playwright(state)
     mock_install.assert_called_once()
     assert state["playwright_ok"] is True
@@ -339,8 +341,8 @@ def test_wizard_step_playwright_installs_when_missing(monkeypatch, tmp_path):
 
 def test_wizard_step_playwright_skipped_on_cancel():
     state: dict = {}
-    with patch("ux_swarm.config.playwright_state", return_value=(True, False)):
-        with patch("ux_swarm.config.select", return_value="Cancel"):
+    with patch("ux_swarm.wizard.playwright_state", return_value=(True, False)):
+        with patch("ux_swarm.wizard.select", return_value="Cancel"):
             _wizard_step_playwright(state)
     assert state["playwright_ok"] is False
 
@@ -362,10 +364,10 @@ def test_run_config_wizard_saves_config(monkeypatch, tmp_path):
     def fake_playwright(state):
         state["playwright_ok"] = True
 
-    with patch("ux_swarm.config._wizard_step_provider", side_effect=fake_provider):
-        with patch("ux_swarm.config._wizard_step_api_key", side_effect=fake_api_key):
-            with patch("ux_swarm.config._wizard_step_model", side_effect=fake_model):
-                with patch("ux_swarm.config._wizard_step_playwright", side_effect=fake_playwright):
+    with patch("ux_swarm.wizard._wizard_step_provider", side_effect=fake_provider):
+        with patch("ux_swarm.wizard._wizard_step_api_key", side_effect=fake_api_key):
+            with patch("ux_swarm.wizard._wizard_step_model", side_effect=fake_model):
+                with patch("ux_swarm.wizard._wizard_step_playwright", side_effect=fake_playwright):
                     run_config_wizard()
 
     import json

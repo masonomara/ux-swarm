@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from ux_swarm.browser_agent import (
+from ux_swarm.agents import (
     ACTION_HISTORY_LIMIT,
     ELEMENT_CAP,
     _build_browser_user_prompt,
@@ -143,6 +143,7 @@ def _browser_setup(page):
     """Return (browser, context) mocks wired to the given page."""
     context = MagicMock()
     context.new_page = AsyncMock(return_value=page)
+    context.add_init_script = AsyncMock()
     context.close = AsyncMock()
     context.pages = [page]
 
@@ -177,7 +178,7 @@ async def test_extract_interactive_elements_filters_invisible():
         {"tag": "button", "role": "", "name": "Sign Up", "placeholder": "", "type_": "", "visible": True},
         {"tag": "input",  "role": "", "name": "",        "placeholder": "email", "type_": "email", "visible": False},
     ])
-    element_list, locators = await _extract_interactive_elements(page)
+    element_list, locators, _ = await _extract_interactive_elements(page)
     assert "Sign Up" in element_list
     assert len(locators) == 1
 
@@ -189,7 +190,7 @@ async def test_extract_interactive_elements_respects_cap():
         {"tag": "button", "role": "", "name": f"btn{i}", "placeholder": "", "type_": "", "visible": True}
         for i in range(ELEMENT_CAP + 2)
     ])
-    _, locators = await _extract_interactive_elements(page)
+    _, locators, _ = await _extract_interactive_elements(page)
     assert len(locators) == ELEMENT_CAP
 
 
@@ -197,7 +198,7 @@ async def test_extract_interactive_elements_respects_cap():
 async def test_extract_interactive_elements_evaluate_exception_returns_empty():
     page = _page_mock()
     page.evaluate = AsyncMock(side_effect=Exception("js error"))
-    element_list, locators = await _extract_interactive_elements(page)
+    element_list, locators, _ = await _extract_interactive_elements(page)
     assert "no interactive elements" in element_list
     assert locators == []
 
@@ -231,8 +232,8 @@ async def test_run_browser_agent_completed():
     browser, _ = _browser_setup(page)
     done = _step_response("done", success=True, thinking="I found it")
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(return_value=done)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.01):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(return_value=done)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.01):
             result, in_tok, out_tok, cost = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -256,8 +257,8 @@ async def test_run_browser_agent_give_up():
     browser, _ = _browser_setup(page)
     give_up = _step_response("give_up", success=False, thinking="too hard")
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(return_value=give_up)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(return_value=give_up)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             result, _, _, _ = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -279,8 +280,8 @@ async def test_run_browser_agent_timeout():
     browser, _ = _browser_setup(page)
     scroll = _step_response("scroll", text="300")
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(return_value=scroll)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(return_value=scroll)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             result, _, _, _ = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -302,8 +303,8 @@ async def test_run_browser_agent_screen_reader_mode():
     browser, _ = _browser_setup(page)
     done = _step_response("done", success=True, thinking="done")
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(return_value=done)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(return_value=done)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             result, _, _, _ = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -327,8 +328,8 @@ async def test_run_browser_agent_friction_collected():
     done = _step_response("done", success=True)
     responses = iter([step_with_friction, done])
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=responses)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=responses)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             result, _, _, _ = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -351,8 +352,8 @@ async def test_run_browser_agent_cost_accumulated():
     done = _step_response("done", success=True)
     responses = iter([scroll, done])
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=responses)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.05):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=responses)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.05):
             _, _, _, cost = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -376,8 +377,8 @@ async def test_run_browser_agent_element_out_of_range():
     done = _step_response("done", success=True)
     responses = iter([bad_click, done])
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=responses)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=responses)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             result, _, _, _ = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -400,8 +401,8 @@ async def test_run_browser_agent_null_element_for_element_action():
     done = _step_response("done", success=True)
     responses = iter([bad_click, done])
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=responses)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=responses)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             result, _, _, _ = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -424,8 +425,8 @@ async def test_run_browser_agent_scroll_with_pixels():
     done = _step_response("done", success=True)
     responses = iter([scroll, done])
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=responses)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=responses)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -450,8 +451,8 @@ async def test_run_browser_agent_scroll_empty_text():
     done = _step_response("done", success=True)
     responses = iter([scroll, done])
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=responses)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=responses)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -472,7 +473,7 @@ async def test_run_browser_agent_cancelled_error_reraises():
     page = _page_mock()
     browser, _ = _browser_setup(page)
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=asyncio.CancelledError)):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=asyncio.CancelledError)):
         with pytest.raises(asyncio.CancelledError):
             await run_browser_agent(
                 browser=browser,
@@ -494,8 +495,8 @@ async def test_run_browser_agent_type_action():
     done = _step_response("done", success=True)
     responses = iter([type_step, done])
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=responses)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=responses)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             result, _, _, _ = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -520,8 +521,8 @@ async def test_run_browser_agent_hover_action():
     done = _step_response("done", success=True)
     responses = iter([hover_step, done])
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=responses)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=responses)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             result, _, _, _ = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -546,8 +547,8 @@ async def test_run_browser_agent_press_key_action():
     done = _step_response("done", success=True)
     responses = iter([press, done])
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(side_effect=responses)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(side_effect=responses)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -569,8 +570,8 @@ async def test_run_browser_agent_unexpected_exception_completes_gracefully():
     # Simulate page.goto raising an unexpected error
     page.goto = AsyncMock(side_effect=RuntimeError("connection refused"))
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock()):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock()):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             result, _, _, _ = await run_browser_agent(
                 browser=browser,
                 url="https://example.com",
@@ -593,8 +594,8 @@ async def test_run_browser_agent_on_step_callback():
     done = _step_response("done", success=True, thinking="done")
     step_calls: list[tuple[str, str, int]] = []
 
-    with patch("ux_swarm.browser_agent._call_with_retry", new=AsyncMock(return_value=done)):
-        with patch("ux_swarm.browser_agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(return_value=done)):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             await run_browser_agent(
                 browser=browser,
                 url="https://example.com",

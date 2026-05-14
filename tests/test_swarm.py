@@ -137,23 +137,27 @@ def test_aggregate_users_field_is_result_count():
 
 @pytest.mark.anyio
 async def test_consolidate_friction_empty_returns_immediately():
-    result, cost = await _consolidate_friction_points([], "model")
+    result, counts, cost = await _consolidate_friction_points([], "model")
     assert result == []
+    assert counts == []
     assert cost == 0.0
 
 
 @pytest.mark.anyio
 async def test_consolidate_friction_success():
     raw = ["Nav is confusing", "Confusing navigation", "CTA unclear"]
-    canonical = ["Confusing navigation", "Confusing navigation", "CTA unclear"]
     mock_response = MagicMock()
-    mock_response.choices[0].message.content = json.dumps({"canonical": canonical})
+    mock_response.choices[0].message.content = json.dumps({"friction_points": [
+        {"phrase": "Confusing navigation", "count": 2},
+        {"phrase": "CTA unclear", "count": 1},
+    ]})
 
     with patch("ux_swarm.swarm.acompletion", new=AsyncMock(return_value=mock_response)):
         with patch("ux_swarm.swarm.completion_cost", return_value=0.01):
-            result, cost = await _consolidate_friction_points(raw, "model")
+            result, counts, cost = await _consolidate_friction_points(raw, "model")
 
-    assert result == canonical
+    assert result == ["Confusing navigation", "CTA unclear"]
+    assert counts == [2, 1]
     assert cost == 0.01
 
 
@@ -161,27 +165,29 @@ async def test_consolidate_friction_success():
 async def test_consolidate_friction_wrong_length_falls_back():
     raw = ["a", "b", "c"]
     mock_response = MagicMock()
-    mock_response.choices[0].message.content = json.dumps({"canonical": ["a", "b"]})
+    mock_response.choices[0].message.content = json.dumps({"friction_points": []})
 
     with patch("ux_swarm.swarm.acompletion", new=AsyncMock(return_value=mock_response)):
-        result, cost = await _consolidate_friction_points(raw, "model")
+        result, counts, cost = await _consolidate_friction_points(raw, "model")
 
     assert result == raw
+    assert counts == [1, 1, 1]
     assert cost == 0.0
 
 
 @pytest.mark.anyio
 async def test_consolidate_friction_cost_exception_defaults_to_zero():
     raw = ["confusing nav"]
-    canonical = ["confusing nav"]
     mock_response = MagicMock()
-    mock_response.choices[0].message.content = json.dumps({"canonical": canonical})
+    mock_response.choices[0].message.content = json.dumps({"friction_points": [
+        {"phrase": "confusing nav", "count": 1},
+    ]})
 
     with patch("ux_swarm.swarm.acompletion", new=AsyncMock(return_value=mock_response)):
         with patch("ux_swarm.swarm.completion_cost", side_effect=Exception("unsupported model")):
-            result, cost = await _consolidate_friction_points(raw, "model")
+            result, counts, cost = await _consolidate_friction_points(raw, "model")
 
-    assert result == canonical
+    assert result == ["confusing nav"]
     assert cost == 0.0
 
 
@@ -189,9 +195,10 @@ async def test_consolidate_friction_cost_exception_defaults_to_zero():
 async def test_consolidate_friction_exception_falls_back():
     raw = ["friction point"]
     with patch("ux_swarm.swarm.acompletion", side_effect=Exception("network error")):
-        result, cost = await _consolidate_friction_points(raw, "model")
+        result, counts, cost = await _consolidate_friction_points(raw, "model")
 
     assert result == raw
+    assert counts == [1]
     assert cost == 0.0
 
 
@@ -214,7 +221,7 @@ async def test_run_screenshot_swarm_aggregates_results():
     users = [UserType(label="Default User", weight=1.0, description="test")]
 
     with patch("ux_swarm.swarm.run_screenshot_agent", side_effect=_mock_agent):
-        with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=(["minor confusion"], 0.0))):
+        with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=(["minor confusion"], [1], 0.0))):
             result = await run_screenshot_swarm(
                 target="shot.png",
                 task="find nav",
@@ -242,7 +249,7 @@ async def test_run_screenshot_swarm_on_agent_done_callback():
         done_calls.append((done, total))
 
     with patch("ux_swarm.swarm.run_screenshot_agent", side_effect=_mock_agent):
-        with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=([], 0.0))):
+        with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=([], [], 0.0))):
             await run_screenshot_swarm(
                 target="shot.png",
                 task="task",
@@ -269,7 +276,7 @@ async def test_run_screenshot_swarm_agent_exception_dropped():
         raise Exception("network failure")
 
     with patch("ux_swarm.swarm.run_screenshot_agent", side_effect=_failing_agent):
-        with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=([], 0.0))):
+        with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=([], [], 0.0))):
             with pytest.raises(CliError, match="All 1 agents failed"):
                 await run_screenshot_swarm(
                     target="shot.png",
@@ -294,7 +301,7 @@ async def test_run_screenshot_swarm_on_done_called_with_none_on_agent_failure():
         done_calls.append((done, total, result))
 
     with patch("ux_swarm.swarm.run_screenshot_agent", side_effect=_failing_agent):
-        with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=([], 0.0))):
+        with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=([], [], 0.0))):
             with pytest.raises(CliError):
                 await run_screenshot_swarm(
                     target="shot.png",
@@ -328,7 +335,7 @@ async def test_run_browser_swarm_aggregates_results():
 
     async def _mock_browser_agent(browser, url, task, user_type, model,
                                    llm_semaphore, max_steps, agent_index,
-                                   viewport=1280, on_step=None):
+                                   viewport=1280, on_step=None, upload_screenshot=None):
         return mock_agent_result, 100, 50, 0.01
 
     mock_browser = MagicMock()
@@ -342,7 +349,7 @@ async def test_run_browser_swarm_aggregates_results():
 
     with patch("ux_swarm.swarm.run_browser_agent", side_effect=_mock_browser_agent):
         with patch("ux_swarm.swarm.async_playwright", return_value=mock_pw_cm):
-            with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=([], 0.0))):
+            with patch("ux_swarm.swarm._consolidate_friction_points", new=AsyncMock(return_value=([], [], 0.0))):
                 result = await run_browser_swarm(
                     url="https://example.com",
                     task="find nav",

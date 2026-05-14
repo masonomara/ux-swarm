@@ -4,7 +4,7 @@ from click.testing import CliRunner
 from unittest.mock import patch
 
 from ux_swarm.cli import CliError, SmartGroup, _fmt_meta, _opt_sort_key, _parse_arg_rows
-from ux_swarm.main import cli
+from ux_swarm.cli import cli
 
 
 # --- _opt_sort_key ---
@@ -172,14 +172,14 @@ def test_reconstruct_image_with_spaces_in_path(group):
 
 def test_parse_args_routes_url_to_run_command():
     """A bare URL as the first argument should be routed to the run subcommand."""
-    with patch("ux_swarm.main.load_config", return_value={}):
+    with patch("ux_swarm.cli.load_config", return_value={}):
         result = CliRunner().invoke(cli, ["example.com", "find", "the", "login"])
     # If routing failed Click would say "No such command 'example.com'" → exit code 2
     assert result.exit_code != 2, result.output
 
 
 def test_parse_args_routes_https_url_to_run_command():
-    with patch("ux_swarm.main.load_config", return_value={}):
+    with patch("ux_swarm.cli.load_config", return_value={}):
         result = CliRunner().invoke(cli, ["https://example.com", "sign", "up"])
     assert result.exit_code != 2, result.output
 
@@ -187,6 +187,6 @@ def test_parse_args_routes_https_url_to_run_command():
 def test_parse_args_routes_image_path_to_run_command(tmp_path):
     img = tmp_path / "shot.png"
     img.write_bytes(b"")
-    with patch("ux_swarm.main.load_config", return_value={}):
+    with patch("ux_swarm.cli.load_config", return_value={}):
         result = CliRunner().invoke(cli, [str(img), "find", "nav"])
     assert result.exit_code != 2, result.output

@@ -5,8 +5,9 @@ from unittest.mock import patch
 
 import pytest
 
-import ux_swarm.main as main_mod
-from ux_swarm.main import _inject_api_key, _make_agent_labels, _resolve_target, _save_result
+import ux_swarm.cli as main_mod
+from ux_swarm.cli import _inject_api_key, _resolve_target, _save_result
+from ux_swarm.display import _make_agent_labels
 from ux_swarm.models import AgentResult, SwarmResult, UserType
 
 

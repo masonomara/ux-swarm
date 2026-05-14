@@ -2,10 +2,10 @@ import json
 
 import pytest
 
-import ux_swarm.personas as personas_mod
+import ux_swarm.users as personas_mod
 from ux_swarm.cli import CliError
 from ux_swarm.models import UserType
-from ux_swarm.personas import DEFAULT_USERS, distribute_users, load_users, write_default_users
+from ux_swarm.users import DEFAULT_USERS, distribute_users, load_users, write_default_users
 
 
 def test_load_users_no_file_returns_defaults(monkeypatch, tmp_path):
@@ -97,7 +97,7 @@ def test_distribute_users_overshoot_trims_to_n():
 def test_default_user_label_and_weight():
     user = DEFAULT_USERS[0]
     assert user.label == "Default User"
-    assert user.weight == 1.0
+    assert user.weight == 0.8
 
 
 def test_default_user_has_non_empty_description():

@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-import ux_swarm.main as main_mod
-import ux_swarm.personas as personas_mod
-from ux_swarm.main import cli
+import ux_swarm.cli as main_mod
+import ux_swarm.users as personas_mod
+from ux_swarm.cli import cli
 from ux_swarm.models import AgentResult, SwarmResult
 
 
@@ -53,14 +53,14 @@ _VALID_CONFIG = {"model": "anthropic/claude-3", "api_key": "sk-ant-test", "provi
 # --- swarm run: error paths ---
 
 def test_run_missing_model(runner):
-    with patch("ux_swarm.main.load_config", return_value={"api_key": "key"}):
+    with patch("ux_swarm.cli.load_config", return_value={"api_key": "key"}):
         result = runner.invoke(cli, ["run", "https://example.com", "find nav"])
     assert result.exit_code != 0
     assert "No model configured" in result.output
 
 
 def test_run_missing_api_key(runner):
-    with patch("ux_swarm.main.load_config", return_value={"model": "anthropic/claude-3"}):
+    with patch("ux_swarm.cli.load_config", return_value={"model": "anthropic/claude-3"}):
         result = runner.invoke(cli, ["run", "https://example.com", "find nav"])
     assert result.exit_code != 0
     assert "No API key" in result.output
@@ -69,7 +69,7 @@ def test_run_missing_api_key(runner):
 def test_run_image_not_found(runner, tmp_path):
     # Use an absolute path so it can't be confused with a bare domain by the URL regex
     missing = str(tmp_path / "nonexistent.png")
-    with patch("ux_swarm.main.load_config", return_value=_VALID_CONFIG):
+    with patch("ux_swarm.cli.load_config", return_value=_VALID_CONFIG):
         result = runner.invoke(cli, ["run", missing, "find nav"])
     assert result.exit_code != 0
     assert "Image not found" in result.output
@@ -81,8 +81,8 @@ def test_run_dispatches_to_screenshot(runner, tmp_path):
     img = tmp_path / "shot.png"
     img.write_bytes(b"")
 
-    with patch("ux_swarm.main.load_config", return_value=_VALID_CONFIG):
-        with patch("ux_swarm.main._run_screenshot") as mock_run:
+    with patch("ux_swarm.cli.load_config", return_value=_VALID_CONFIG):
+        with patch("ux_swarm.cli._run_screenshot") as mock_run:
             runner.invoke(cli, ["run", str(img), "find nav"])
 
     mock_run.assert_called_once()
@@ -92,8 +92,8 @@ def test_run_dispatches_to_screenshot(runner, tmp_path):
 
 
 def test_run_dispatches_to_browser(runner):
-    with patch("ux_swarm.main.load_config", return_value=_VALID_CONFIG):
-        with patch("ux_swarm.main._run_browser") as mock_run:
+    with patch("ux_swarm.cli.load_config", return_value=_VALID_CONFIG):
+        with patch("ux_swarm.cli._run_browser") as mock_run:
             runner.invoke(cli, ["run", "https://example.com", "find nav"])
 
     mock_run.assert_called_once()
@@ -103,8 +103,8 @@ def test_run_screenshot_users_flag(runner, tmp_path):
     img = tmp_path / "shot.png"
     img.write_bytes(b"")
 
-    with patch("ux_swarm.main.load_config", return_value=_VALID_CONFIG):
-        with patch("ux_swarm.main._run_screenshot") as mock_run:
+    with patch("ux_swarm.cli.load_config", return_value=_VALID_CONFIG):
+        with patch("ux_swarm.cli._run_screenshot") as mock_run:
             runner.invoke(cli, ["run", str(img), "find nav", "--users", "3"])
 
     assert mock_run.call_args[0][2] == 3  # users arg
@@ -113,7 +113,7 @@ def test_run_screenshot_users_flag(runner, tmp_path):
 # --- swarm users ---
 
 def test_users_lists_default_personas(runner, tmp_path):
-    with patch("ux_swarm.personas.USERS_JSON", tmp_path / "users.json"):
+    with patch("ux_swarm.users.USERS_JSON", tmp_path / "users.json"):
         result = runner.invoke(cli, ["users"])
     assert result.exit_code == 0
     assert "Default User" in result.output
@@ -122,8 +122,8 @@ def test_users_lists_default_personas(runner, tmp_path):
 
 def test_users_edit_writes_file(runner, tmp_path):
     users_json = tmp_path / "users.json"
-    with patch("ux_swarm.personas.USERS_JSON", users_json):
-        with patch("ux_swarm.personas.LOCAL_DIR", tmp_path):
+    with patch("ux_swarm.users.USERS_JSON", users_json):
+        with patch("ux_swarm.users.LOCAL_DIR", tmp_path):
             result = runner.invoke(cli, ["users", "--edit"])
     assert result.exit_code == 0
     assert users_json.exists()
@@ -132,7 +132,7 @@ def test_users_edit_writes_file(runner, tmp_path):
 def test_users_edit_existing_file_reports_already_exists(runner, tmp_path):
     users_json = tmp_path / "users.json"
     users_json.write_text("[]")
-    with patch("ux_swarm.personas.USERS_JSON", users_json):
+    with patch("ux_swarm.users.USERS_JSON", users_json):
         result = runner.invoke(cli, ["users", "--edit"])
     assert "already exists" in result.output
 
@@ -140,7 +140,7 @@ def test_users_edit_existing_file_reports_already_exists(runner, tmp_path):
 # --- swarm results ---
 
 def test_results_no_file(runner, tmp_path):
-    with patch("ux_swarm.main.RESULTS_JSON", tmp_path / "results.json"):
+    with patch("ux_swarm.cli.RESULTS_JSON", tmp_path / "results.json"):
         result = runner.invoke(cli, ["results"])
     assert result.exit_code == 0
     assert "No results yet" in result.output
@@ -149,7 +149,7 @@ def test_results_no_file(runner, tmp_path):
 def test_results_shows_entries(runner, tmp_path):
     results_json = tmp_path / "results.json"
     results_json.write_text(json.dumps([_make_swarm_result().model_dump()]) + "\n")
-    with patch("ux_swarm.main.RESULTS_JSON", results_json):
+    with patch("ux_swarm.cli.RESULTS_JSON", results_json):
         result = runner.invoke(cli, ["results"])
     assert result.exit_code == 0
     assert "shot.png" in result.output
@@ -160,7 +160,7 @@ def test_results_number_flag_limits_output(runner, tmp_path):
     results_json = tmp_path / "results.json"
     entries = [_make_swarm_result(target=f"shot{i}.png").model_dump() for i in range(5)]
     results_json.write_text(json.dumps(entries) + "\n")
-    with patch("ux_swarm.main.RESULTS_JSON", results_json):
+    with patch("ux_swarm.cli.RESULTS_JSON", results_json):
         result = runner.invoke(cli, ["results", "--number", "2"])
     assert "shot4.png" in result.output
     assert "shot0.png" not in result.output
@@ -169,7 +169,7 @@ def test_results_number_flag_limits_output(runner, tmp_path):
 def test_results_empty_json_array(runner, tmp_path):
     results_json = tmp_path / "results.json"
     results_json.write_text("[]")
-    with patch("ux_swarm.main.RESULTS_JSON", results_json):
+    with patch("ux_swarm.cli.RESULTS_JSON", results_json):
         result = runner.invoke(cli, ["results"])
     assert result.exit_code == 0
     assert "No results yet" in result.output
@@ -178,7 +178,7 @@ def test_results_empty_json_array(runner, tmp_path):
 def test_results_corrupt_file_raises_cli_error(runner, tmp_path):
     results_json = tmp_path / "results.json"
     results_json.write_text("{bad json{{")
-    with patch("ux_swarm.main.RESULTS_JSON", results_json):
+    with patch("ux_swarm.cli.RESULTS_JSON", results_json):
         result = runner.invoke(cli, ["results"])
     assert result.exit_code != 0
 
@@ -186,7 +186,7 @@ def test_results_corrupt_file_raises_cli_error(runner, tmp_path):
 # --- swarm expand ---
 
 def test_expand_no_file(runner, tmp_path):
-    with patch("ux_swarm.main.RESULTS_JSON", tmp_path / "results.json"):
+    with patch("ux_swarm.cli.RESULTS_JSON", tmp_path / "results.json"):
         result = runner.invoke(cli, ["expand"])
     assert result.exit_code == 0
     assert "No results yet" in result.output
@@ -195,8 +195,8 @@ def test_expand_no_file(runner, tmp_path):
 def test_expand_renders_agent_breakdown(runner, tmp_path):
     results_json = tmp_path / "results.json"
     results_json.write_text(json.dumps([_make_swarm_result().model_dump()]) + "\n")
-    with patch("ux_swarm.main.RESULTS_JSON", results_json):
-        with patch("ux_swarm.personas.USERS_JSON", tmp_path / "users.json"):
+    with patch("ux_swarm.cli.RESULTS_JSON", results_json):
+        with patch("ux_swarm.users.USERS_JSON", tmp_path / "users.json"):
             result = runner.invoke(cli, ["expand"])
     assert result.exit_code == 0
     assert "Default User" in result.output
@@ -205,7 +205,7 @@ def test_expand_renders_agent_breakdown(runner, tmp_path):
 def test_expand_empty_json_array(runner, tmp_path):
     results_json = tmp_path / "results.json"
     results_json.write_text("[]")
-    with patch("ux_swarm.main.RESULTS_JSON", results_json):
+    with patch("ux_swarm.cli.RESULTS_JSON", results_json):
         result = runner.invoke(cli, ["expand"])
     assert result.exit_code == 0
     assert "No results yet" in result.output
@@ -240,8 +240,8 @@ def test_expand_shows_friction_points(runner, tmp_path):
         individual_results=[agent],
     )
     results_json.write_text(json.dumps([swarm.model_dump()]) + "\n")
-    with patch("ux_swarm.main.RESULTS_JSON", results_json):
-        with patch("ux_swarm.personas.USERS_JSON", tmp_path / "users.json"):
+    with patch("ux_swarm.cli.RESULTS_JSON", results_json):
+        with patch("ux_swarm.users.USERS_JSON", tmp_path / "users.json"):
             result = runner.invoke(cli, ["expand"])
     assert "Pain points" in result.output
     assert "confusing nav" in result.output
@@ -250,7 +250,7 @@ def test_expand_shows_friction_points(runner, tmp_path):
 def test_expand_corrupt_file(runner, tmp_path):
     results_json = tmp_path / "results.json"
     results_json.write_text("{bad}")
-    with patch("ux_swarm.main.RESULTS_JSON", results_json):
+    with patch("ux_swarm.cli.RESULTS_JSON", results_json):
         result = runner.invoke(cli, ["expand"])
     assert result.exit_code != 0
 

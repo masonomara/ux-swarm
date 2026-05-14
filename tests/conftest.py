@@ -1,8 +1,8 @@
 import pytest
 
 import ux_swarm.config as cfg
-import ux_swarm.main as main_mod
-import ux_swarm.personas as personas_mod
+import ux_swarm.cli as main_mod
+import ux_swarm.users as personas_mod  # noqa: E402
 
 
 @pytest.fixture

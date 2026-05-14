@@ -7,8 +7,8 @@ import pytest
 
 import json
 
-from ux_swarm.agent import _build_system_prompt, _load_image, _media_type, _call_with_retry, run_screenshot_agent
-from ux_swarm.cli import CliError
+from ux_swarm.agents import _build_system_prompt, _load_image, _media_type, _call_with_retry, run_screenshot_agent
+from ux_swarm.errors import CliError
 from ux_swarm.models import ScreenshotDecision, UserType
 
 
@@ -74,7 +74,7 @@ class _FakeRateLimitError(Exception):
 @pytest.mark.anyio
 async def test_call_with_retry_success():
     mock_response = MagicMock()
-    with patch("ux_swarm.agent.acompletion", new=AsyncMock(return_value=mock_response)):
+    with patch("ux_swarm.agents.acompletion", new=AsyncMock(return_value=mock_response)):
         result = await _call_with_retry("anthropic/claude-3", [])
     assert result is mock_response
 
@@ -91,8 +91,8 @@ async def test_call_with_retry_retries_on_rate_limit():
             raise _FakeRateLimitError()
         return mock_response
 
-    with patch("ux_swarm.agent.RateLimitError", _FakeRateLimitError):
-        with patch("ux_swarm.agent.acompletion", side_effect=_side_effect):
+    with patch("ux_swarm.agents.RateLimitError", _FakeRateLimitError):
+        with patch("ux_swarm.agents.acompletion", side_effect=_side_effect):
             with patch("asyncio.sleep", new=AsyncMock()):
                 result = await _call_with_retry("model", [])
 
@@ -105,8 +105,8 @@ async def test_call_with_retry_exhausted_raises_cli_error():
     async def _always_rate_limit(**kwargs):
         raise _FakeRateLimitError()
 
-    with patch("ux_swarm.agent.RateLimitError", _FakeRateLimitError):
-        with patch("ux_swarm.agent.acompletion", side_effect=_always_rate_limit):
+    with patch("ux_swarm.agents.RateLimitError", _FakeRateLimitError):
+        with patch("ux_swarm.agents.acompletion", side_effect=_always_rate_limit):
             with patch("asyncio.sleep", new=AsyncMock()):
                 with pytest.raises(CliError, match="Rate limited"):
                     await _call_with_retry("model", [])
@@ -136,8 +136,8 @@ async def test_run_screenshot_agent_valid_response(tmp_path):
     img = tmp_path / "shot.png"
     img.write_bytes(b"\x89PNG\r\n\x1a\n")
 
-    with patch("ux_swarm.agent._call_with_retry", new=AsyncMock(return_value=_mock_response(json.dumps(_VALID_DECISION)))):
-        with patch("ux_swarm.agent.completion_cost", return_value=0.01):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(return_value=_mock_response(json.dumps(_VALID_DECISION)))):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.01):
             decision, in_tok, out_tok, cost = await run_screenshot_agent(str(img), "find sign up", _USER, "model")
 
     assert decision.completed is True
@@ -152,8 +152,8 @@ async def test_run_screenshot_agent_invalid_json_falls_back(tmp_path):
     img = tmp_path / "shot.png"
     img.write_bytes(b"\x89PNG\r\n\x1a\n")
 
-    with patch("ux_swarm.agent._call_with_retry", new=AsyncMock(return_value=_mock_response("not valid json at all"))):
-        with patch("ux_swarm.agent.completion_cost", return_value=0.0):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(return_value=_mock_response("not valid json at all"))):
+        with patch("ux_swarm.agents.completion_cost", return_value=0.0):
             decision, _, _, _ = await run_screenshot_agent(str(img), "task", _USER, "model")
 
     assert decision.abandoned is True
@@ -172,8 +172,8 @@ async def test_run_screenshot_agent_cost_exception_defaults_to_zero(tmp_path):
     img = tmp_path / "shot.png"
     img.write_bytes(b"\x89PNG\r\n\x1a\n")
 
-    with patch("ux_swarm.agent._call_with_retry", new=AsyncMock(return_value=_mock_response(json.dumps(_VALID_DECISION)))):
-        with patch("ux_swarm.agent.completion_cost", side_effect=Exception("unsupported model")):
+    with patch("ux_swarm.agents._call_with_retry", new=AsyncMock(return_value=_mock_response(json.dumps(_VALID_DECISION)))):
+        with patch("ux_swarm.agents.completion_cost", side_effect=Exception("unsupported model")):
             _, _, _, cost = await run_screenshot_agent(str(img), "task", _USER, "model")
 
     assert cost == 0.0
